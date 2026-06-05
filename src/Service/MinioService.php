@@ -160,16 +160,24 @@ class MinioService
 
     /**
      * Vrátí obsah souboru jako PHP stream (resource).
-     * Používá se pro proxy preview aby se předešlo CORS problémům.
+     *
+     * Pokud jsou zadány $start / $end, použije se HTTP Range požadavek na S3
+     * a vrátí pouze požadovaný úsek (pro 206 Partial Content proxy).
      *
      * @return resource
      */
-    public function getObjectStream(string $key): mixed
+    public function getObjectStream(string $key, ?int $start = null, ?int $end = null): mixed
     {
-        $result = $this->client->getObject([
+        $params = [
             'Bucket' => $this->bucket,
             'Key'    => $key,
-        ]);
+        ];
+
+        if ($start !== null) {
+            $params['Range'] = 'bytes=' . $start . '-' . ($end ?? '');
+        }
+
+        $result = $this->client->getObject($params);
 
         return $result['Body']->detach();
     }

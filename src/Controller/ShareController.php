@@ -102,21 +102,78 @@ class ShareController extends AbstractController
             }
         }
 
-        $mime   = $file->getMimeType() ?? 'application/octet-stream';
+        // PHP session soubor je zamčen po celou dobu trvání požadavku.
+        // StreamedResponse může běžet minuty (video) — jakýkoliv další požadavek
+        // ze stejného prohlížeče (refresh, polling, navigace) by čekal na
+        // uvolnění session zámku a "zamrzl". save() zámek okamžitě uvolní.
+        if ($request->hasSession() && $request->getSession()->isStarted()) {
+            $request->getSession()->save();
+        }
+
+        $mime     = $file->getMimeType() ?? 'application/octet-stream';
+        $fileSize = $file->getSizeBytes();
+
+        // ── Video / Audio: proxy s podporou HTTP Range požadavků ──────
+        //
+        // Redirect na presigned MinIO URL NEFUNGUJE, pokud je stránka na HTTPS
+        // a MinIO běží na plain HTTP — prohlížeč blokuje mixed content pro
+        // vložené <video>/<audio> prvky.
+        //
+        // Správné řešení: proxy přes Symfony + implementovat Range požadavky
+        // (RFC 7233). Prohlížeč pošle "Range: bytes=X-Y" při hledání.
+        // Bez Range podpory dostane 200 místo 206 → zahazuje buffer a začíná
+        // znovu od bytu 0 → nekonečná smyčka požadavků → lag.
+        if (str_starts_with($mime, 'video/') || str_starts_with($mime, 'audio/')) {
+            $rangeHeader = $request->headers->get('Range', '');
+
+            // Zpracovat Range: bytes=START-[END]
+            if ($rangeHeader && preg_match('/bytes=(\d+)-(\d*)/', $rangeHeader, $m)) {
+                $start  = (int) $m[1];
+                $end    = $m[2] !== '' ? (int) $m[2] : $fileSize - 1;
+                $end    = min($end, $fileSize - 1);
+                $length = max(0, $end - $start + 1);
+
+                $stream = $this->minio->getObjectStream($file->getMinioKey(), $start, $end);
+
+                $response = new StreamedResponse(function () use ($stream): void {
+                    $this->pipe($stream);
+                }, 206);
+
+                $response->headers->set('Content-Type',   $mime);
+                $response->headers->set('Content-Length', (string) $length);
+                $response->headers->set('Content-Range',  "bytes {$start}-{$end}/{$fileSize}");
+                $response->headers->set('Accept-Ranges',  'bytes');
+                $response->headers->set('Cache-Control',  'private, max-age=0');
+
+                return $response;
+            }
+
+            // Celý soubor (první požadavek bez Range)
+            $stream = $this->minio->getObjectStream($file->getMinioKey());
+
+            $response = new StreamedResponse(function () use ($stream): void {
+                $this->pipe($stream);
+            });
+
+            $response->headers->set('Content-Type',   $mime);
+            $response->headers->set('Content-Length', (string) $fileSize);
+            $response->headers->set('Accept-Ranges',  'bytes');
+            $response->headers->set('Cache-Control',  'private, max-age=0');
+
+            return $response;
+        }
+
+        // ── Ostatní typy (obrázky, PDF, text) — jednoduchý proxy ─────
         $stream = $this->minio->getObjectStream($file->getMinioKey());
 
-        $response = new StreamedResponse(function () use ($stream) {
-            if (is_resource($stream)) {
-                fpassthru($stream);
-                fclose($stream);
-            }
+        $response = new StreamedResponse(function () use ($stream): void {
+            $this->pipe($stream);
         });
 
-        $response->headers->set('Content-Type', $mime);
-        $response->headers->set('Cache-Control', 'private, max-age=300');
+        $response->headers->set('Content-Type',   $mime);
+        $response->headers->set('Cache-Control',  'private, max-age=300');
         $response->headers->set('X-Content-Type-Options', 'nosniff');
 
-        // PDF a text se zobrazují inline v prohlížeči
         if ($mime === 'application/pdf' || str_starts_with($mime, 'text/')) {
             $response->headers->set('Content-Disposition', 'inline');
         }
@@ -155,6 +212,37 @@ class ShareController extends AbstractController
     }
 
     // ── Helpers ──────────────────────────────────────────────────────
+
+    /**
+     * Streamuje obsah PHP streamu na výstup po částech (256 KB).
+     *
+     * Na rozdíl od fpassthru() kontroluje po každém chunku, zda klient stále
+     * poslouchá. Jakmile prohlížeč zavře spojení (uživatel zastaví audio/video,
+     * zavře záložku, refreshne stránku), connection_aborted() vrátí true a smyčka
+     * okamžitě skončí — FPM worker se uvolní místo toho, aby čekal na timeout.
+     *
+     * @param resource $stream
+     */
+    private function pipe(mixed $stream): void
+    {
+        if (!is_resource($stream)) {
+            return;
+        }
+
+        ignore_user_abort(false);          // detekovat odpojení klienta
+        $chunkSize = 256 * 1_024;          // 256 KB na iteraci
+
+        while (!feof($stream) && !connection_aborted()) {
+            $chunk = fread($stream, $chunkSize);
+            if ($chunk === false || $chunk === '') {
+                break;
+            }
+            echo $chunk;
+            flush();
+        }
+
+        fclose($stream);
+    }
 
     private function buildPreviewUrl(File $file): ?string
     {
