@@ -155,6 +155,36 @@ class User implements UserInterface, PasswordAuthenticatedUserInterface
         return $this;
     }
 
+    // ── Password reset ───────────────────────────────────────────────
+
+    /** Token pro obnovení hesla */
+    #[ORM\Column(length: 128, nullable: true)]
+    private ?string $resetToken = null;
+
+    /** Expirace reset tokenu (1 hodina) */
+    #[ORM\Column(nullable: true)]
+    private ?\DateTimeImmutable $resetTokenExpiry = null;
+
+    public function getResetToken(): ?string { return $this->resetToken; }
+    public function setResetToken(?string $token): static { $this->resetToken = $token; return $this; }
+
+    public function getResetTokenExpiry(): ?\DateTimeImmutable { return $this->resetTokenExpiry; }
+    public function setResetTokenExpiry(?\DateTimeImmutable $expiry): static { $this->resetTokenExpiry = $expiry; return $this; }
+
+    public function isResetTokenValid(): bool
+    {
+        return $this->resetToken !== null
+            && $this->resetTokenExpiry !== null
+            && $this->resetTokenExpiry > new \DateTimeImmutable();
+    }
+
+    public function clearResetToken(): static
+    {
+        $this->resetToken       = null;
+        $this->resetTokenExpiry = null;
+        return $this;
+    }
+
     // ── Timestamps ──────────────────────────────────────────────────
 
     public function getCreatedAt(): \DateTimeImmutable { return $this->createdAt; }

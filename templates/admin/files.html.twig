@@ -1,0 +1,137 @@
+{% extends 'admin/layout.html.twig' %}
+{% block title %}Soubory — Admin — ulozimto.cz{% endblock %}
+
+{% block admin_body %}
+<div class="flex items-center justify-between mb-6">
+    <div class="flex items-center gap-3">
+        <h1 class="text-2xl font-bold">
+            {% if status == 'infected' %}Infikované soubory
+            {% elseif status == 'pending' %}Čekající soubory
+            {% else %}Všechny soubory{% endif %}
+        </h1>
+        {% if status %}<span class="text-sm text-gray-400">(filtr: {{ status }})</span>{% endif %}
+    </div>
+    <div class="flex items-center gap-2">
+        <span class="text-sm text-gray-400">Celkem: {{ total }}</span>
+        {% if status %}
+        <a href="{{ path('admin_files') }}" class="text-xs text-indigo-500 hover:underline">Zrušit filtr</a>
+        {% endif %}
+    </div>
+</div>
+
+{# Stavové filtry #}
+<div class="flex gap-2 mb-4">
+    {% for s, label in {'': 'Vše', 'clean': 'Bezpečné', 'pending': 'Čekající', 'infected': 'Infikované', 'error': 'Chyba'} %}
+    <a href="{{ path('admin_files', s ? {status: s} : {}) }}"
+       class="px-3 py-1.5 rounded-lg text-xs font-medium transition
+              {{ status == s ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-indigo-300' }}">
+        {{ label }}
+    </a>
+    {% endfor %}
+</div>
+
+<div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    {% if files|length == 0 %}
+    <div class="py-16 text-center text-gray-400">
+        <i data-lucide="inbox" class="w-10 h-10 mx-auto mb-3 text-gray-200"></i>
+        <p>Žádné soubory.</p>
+    </div>
+    {% else %}
+    <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+            <tr>
+                <th class="px-4 py-3 text-left">Název</th>
+                <th class="px-4 py-3 text-left">Vlastník</th>
+                <th class="px-4 py-3 text-center">Stav</th>
+                <th class="px-4 py-3 text-right">Velikost</th>
+                <th class="px-4 py-3 text-center">Stažení</th>
+                <th class="px-4 py-3 text-center">Platnost</th>
+                <th class="px-4 py-3"></th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+        {% for file in files %}
+            <tr class="hover:bg-gray-50 transition-colors"
+                x-data="{ gone: false, async del(t) { if(!confirm('Opravdu smazat soubor?')) return; const r = await fetch('/admin/files/'+t+'/delete',{method:'POST'}); if(r.ok){ this.gone=true; } } }"
+                x-show="!gone">
+                <td class="px-4 py-3 max-w-xs">
+                    <a href="{{ path('share_show', {token: file.shareToken}) }}"
+                       target="_blank" class="font-medium hover:text-indigo-600 truncate block">
+                        {{ file.originalName|slice(0,50) }}{% if file.originalName|length > 50 %}…{% endif %}
+                    </a>
+                    {% if file.customAlias %}
+                    <span class="text-xs text-indigo-400">/s/{{ file.customAlias }}</span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-3 text-gray-500 text-xs">
+                    {% if file.user %}
+                    <a href="{{ path('admin_user_detail', {id: file.user.id}) }}" class="hover:text-indigo-500">
+                        {{ file.user.email }}
+                    </a>
+                    {% else %}
+                    <span class="text-gray-300">Anonym</span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-3 text-center">
+                    <span class="text-xs px-2 py-0.5 rounded-full font-medium
+                        {{ file.scanStatus == 'clean'    ? 'bg-green-50 text-green-600'  :
+                           file.scanStatus == 'infected' ? 'bg-red-50 text-red-600'      :
+                           file.scanStatus == 'pending'  ? 'bg-amber-50 text-amber-600'  :
+                           'bg-gray-50 text-gray-400' }}">
+                        {{ file.scanStatus }}
+                    </span>
+                </td>
+                <td class="px-4 py-3 text-right text-gray-500">{{ file.formattedSize }}</td>
+                <td class="px-4 py-3 text-center text-gray-500">{{ file.downloadCount }}×</td>
+                <td class="px-4 py-3 text-center text-xs {{ file.expired ? 'text-red-400' : 'text-gray-400' }}">
+                    {{ expiration.getRemainingLabel(file.expiresAt) }}
+                </td>
+                <td class="px-4 py-3 text-right">
+                    <button @click="del('{{ file.shareToken }}')"
+                            class="text-gray-400 hover:text-red-500 transition" title="Smazat">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</div>
+
+{% if pages > 1 %}
+<div class="flex justify-center gap-2 mt-6">
+    {% for p in 1..pages %}
+    <a href="{{ path('admin_files', {page: p}|merge(status ? {status: status} : {})) }}"
+       class="w-8 h-8 flex items-center justify-center rounded-lg text-sm
+              {{ p == page ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-indigo-300' }}">
+        {{ p }}
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+// Globální funkce pro smazání souboru — Alpine komponent na řádku ji volá
+async function deleteFile(token) {
+    if (!confirm('Opravdu smazat soubor?')) return;
+    const res = await fetch(`/admin/files/${token}/delete`, { method: 'POST' });
+    return res.ok;
+}
+
+// Připojení k Alpine x-data v každém řádku
+document.addEventListener('alpine:init', () => {
+    Alpine.data('fileRow', (token) => ({
+        gone: false,
+        async deleteFile(token) {
+            if (!confirm('Opravdu smazat soubor?')) return;
+            const res = await fetch(`/admin/files/${token}/delete`, { method: 'POST' });
+            if (res.ok) this.gone = true;
+        },
+    }));
+});
+</script>
+{% endblock %}

@@ -16,6 +16,15 @@ use Symfony\Component\Routing\Attribute\Route;
 
 class ShareController extends AbstractController
 {
+    /** MIME typy podporující inline preview */
+    private const PREVIEWABLE = [
+        'image/', 'video/', 'audio/', 'text/',
+    ];
+    private const PREVIEWABLE_EXACT = [
+        'application/pdf',
+        'application/json',
+    ];
+
     public function __construct(
         private readonly FileRepository         $files,
         private readonly MinioService           $minio,
@@ -52,14 +61,7 @@ class ShareController extends AbstractController
             return $this->render('share/infected.html.twig', ['file' => $file]);
         }
 
-        // Preview URL (jen pro čisté soubory — pending zobrazíme jako waiting)
-        $previewUrl = null;
-        if ($file->isClean()) {
-            $mime = $file->getMimeType() ?? '';
-            if (str_starts_with($mime, 'image/') || str_starts_with($mime, 'video/')) {
-                $previewUrl = $this->generateUrl('share_preview', ['token' => $file->getShareToken()]);
-            }
-        }
+        $previewUrl = $file->isClean() ? $this->buildPreviewUrl($file) : null;
 
         return $this->render('share/show.html.twig', [
             'file'       => $file,
@@ -80,14 +82,11 @@ class ShareController extends AbstractController
 
         return $this->json([
             'status'     => $file->getScanStatus(),
-            'previewUrl' => ($file->isClean() && (
-                str_starts_with($file->getMimeType() ?? '', 'image/') ||
-                str_starts_with($file->getMimeType() ?? '', 'video/')
-            )) ? $this->generateUrl('share_preview', ['token' => $file->getShareToken()]) : null,
+            'previewUrl' => $file->isClean() ? $this->buildPreviewUrl($file) : null,
         ]);
     }
 
-    /** Proxy preview — streamuje obrázek/video přes Symfony (žádné CORS) */
+    /** Proxy preview — streamuje soubor přes Symfony (žádné CORS) */
     #[Route('/s/{token}/preview', name: 'share_preview', methods: ['GET'])]
     public function preview(string $token, Request $request): Response
     {
@@ -117,6 +116,11 @@ class ShareController extends AbstractController
         $response->headers->set('Cache-Control', 'private, max-age=300');
         $response->headers->set('X-Content-Type-Options', 'nosniff');
 
+        // PDF a text se zobrazují inline v prohlížeči
+        if ($mime === 'application/pdf' || str_starts_with($mime, 'text/')) {
+            $response->headers->set('Content-Disposition', 'inline');
+        }
+
         return $response;
     }
 
@@ -130,7 +134,6 @@ class ShareController extends AbstractController
             throw $this->createNotFoundException('Soubor neexistuje nebo vypršela jeho platnost.');
         }
 
-        // Blokovat stažení infikovaných a ještě neskenovaných souborů
         if ($file->isInfected()) {
             return $this->render('share/infected.html.twig', ['file' => $file]);
         }
@@ -149,5 +152,24 @@ class ShareController extends AbstractController
         $this->em->flush();
 
         return $this->redirect($this->minio->getPresignedUrl($file->getMinioKey(), 3600));
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────
+
+    private function buildPreviewUrl(File $file): ?string
+    {
+        $mime = $file->getMimeType() ?? '';
+
+        foreach (self::PREVIEWABLE as $prefix) {
+            if (str_starts_with($mime, $prefix)) {
+                return $this->generateUrl('share_preview', ['token' => $file->getShareToken()]);
+            }
+        }
+
+        if (in_array($mime, self::PREVIEWABLE_EXACT, true)) {
+            return $this->generateUrl('share_preview', ['token' => $file->getShareToken()]);
+        }
+
+        return null;
     }
 }

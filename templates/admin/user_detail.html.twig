@@ -1,0 +1,111 @@
+{% extends 'admin/layout.html.twig' %}
+{% block title %}{{ user.email }} — Admin — ulozimto.cz{% endblock %}
+
+{% block admin_body %}
+<div class="mb-4">
+    <a href="{{ path('admin_users') }}" class="text-sm text-gray-400 hover:text-indigo-500 flex items-center gap-1">
+        <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i>
+        Zpět na uživatele
+    </a>
+</div>
+
+<div class="space-y-5">
+
+    {# Profil #}
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+        <div class="flex items-center gap-4 mb-4">
+            <img src="{{ avatarService.getAvatarUrl(user, 56) }}" alt=""
+                 class="w-14 h-14 rounded-full object-cover border border-gray-200">
+            <div>
+                <h1 class="text-lg font-bold">{{ user.displayName }}</h1>
+                <p class="text-sm text-gray-400">{{ user.email }}</p>
+            </div>
+            <span class="ml-auto inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full
+                         {{ user.plus ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-500' }}">
+                <i data-lucide="{{ user.plus ? 'zap' : 'user' }}" class="w-3 h-3"></i>
+                {{ user.plus ? 'PLUS' : 'Free' }}
+            </span>
+        </div>
+
+        <dl class="grid grid-cols-2 gap-3 text-sm">
+            <div class="bg-gray-50 rounded-xl p-3">
+                <dt class="text-xs text-gray-400 mb-1">ID</dt>
+                <dd class="font-mono text-xs text-gray-600 break-all">{{ user.id }}</dd>
+            </div>
+            <div class="bg-gray-50 rounded-xl p-3">
+                <dt class="text-xs text-gray-400 mb-1">Registrace</dt>
+                <dd class="font-medium">{{ user.createdAt|date('j. n. Y H:i') }}</dd>
+            </div>
+            <div class="bg-gray-50 rounded-xl p-3">
+                <dt class="text-xs text-gray-400 mb-1">Soubory</dt>
+                <dd class="font-medium">{{ user.files|length }}</dd>
+            </div>
+            <div class="bg-gray-50 rounded-xl p-3">
+                <dt class="text-xs text-gray-400 mb-1">Využito úložiště</dt>
+                <dd class="font-medium">
+                    {% if storageUsed < 1073741824 %}
+                        {{ (storageUsed / 1048576)|round(1) }} MB
+                    {% else %}
+                        {{ (storageUsed / 1073741824)|round(2) }} GB
+                    {% endif %}
+                    z {{ (user.storageLimit / 1073741824)|round(0) }} GB
+                </dd>
+            </div>
+        </dl>
+    </div>
+
+    {# Soubory #}
+    {% if user.files|length > 0 %}
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-gray-100">
+            <h2 class="font-semibold text-gray-900">Soubory ({{ user.files|length }})</h2>
+        </div>
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+                <tr>
+                    <th class="px-4 py-2.5 text-left">Název</th>
+                    <th class="px-4 py-2.5 text-center">Stav</th>
+                    <th class="px-4 py-2.5 text-right">Velikost</th>
+                    <th class="px-4 py-2.5 text-center">Platnost</th>
+                    <th class="px-4 py-2.5"></th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+            {% for file in user.files %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-2.5">
+                        <a href="{{ path('share_show', {token: file.shareToken}) }}"
+                           class="hover:text-indigo-600 font-medium" target="_blank">
+                            {{ file.originalName|slice(0, 50) }}{% if file.originalName|length > 50 %}…{% endif %}
+                        </a>
+                    </td>
+                    <td class="px-4 py-2.5 text-center">
+                        <span class="text-xs px-2 py-0.5 rounded-full
+                            {{ file.scanStatus == 'clean' ? 'bg-green-50 text-green-600' :
+                               file.scanStatus == 'infected' ? 'bg-red-50 text-red-600' :
+                               file.scanStatus == 'pending' ? 'bg-amber-50 text-amber-600' :
+                               'bg-gray-50 text-gray-400' }}">
+                            {{ file.scanStatus }}
+                        </span>
+                    </td>
+                    <td class="px-4 py-2.5 text-right text-gray-500">{{ file.formattedSize }}</td>
+                    <td class="px-4 py-2.5 text-center text-xs {{ file.expired ? 'text-red-400' : 'text-gray-400' }}">
+                        {{ expiration.getRemainingLabel(file.expiresAt) }}
+                    </td>
+                    <td class="px-4 py-2.5 text-right">
+                        <form method="POST" action="{{ path('admin_delete_file', {token: file.shareToken}) }}"
+                              onsubmit="return confirm('Smazat soubor?')" x-data
+                              @submit.prevent="fetch(this.action, {method:'POST'}).then(r => r.ok && this.closest('tr').remove())">
+                            <button type="submit" class="text-gray-400 hover:text-red-500 transition">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

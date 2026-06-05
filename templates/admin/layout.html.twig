@@ -1,0 +1,42 @@
+{% extends 'base.html.twig' %}
+
+{% block body %}
+<div class="flex gap-6 items-start">
+
+    {# ── Admin sidebar ── #}
+    <aside class="w-48 flex-shrink-0">
+        <nav class="bg-white rounded-2xl border border-gray-100 shadow-sm p-3 space-y-1 sticky top-6">
+            <p class="text-xs font-semibold text-gray-400 uppercase tracking-wider px-3 py-1 mb-1">Administrace</p>
+            <a href="{{ path('admin_index') }}"
+               class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-indigo-50 hover:text-indigo-700 transition
+                      {{ app.request.attributes.get('_route') == 'admin_index' ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-600' }}">
+                <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+                Přehled
+            </a>
+            <a href="{{ path('admin_users') }}"
+               class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-indigo-50 hover:text-indigo-700 transition
+                      {{ app.request.attributes.get('_route') starts with 'admin_user' ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-600' }}">
+                <i data-lucide="users" class="w-4 h-4"></i>
+                Uživatelé
+            </a>
+            <a href="{{ path('admin_files') }}"
+               class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-indigo-50 hover:text-indigo-700 transition
+                      {{ app.request.attributes.get('_route') == 'admin_files' and app.request.query.get('status') != 'infected' ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-600' }}">
+                <i data-lucide="files" class="w-4 h-4"></i>
+                Soubory
+            </a>
+            <a href="{{ path('admin_files', {status: 'infected'}) }}"
+               class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm hover:bg-red-50 hover:text-red-700 transition
+                      {{ app.request.query.get('status') == 'infected' ? 'bg-red-50 text-red-700 font-medium' : 'text-gray-600' }}">
+                <i data-lucide="shield-x" class="w-4 h-4"></i>
+                Infikované
+            </a>
+        </nav>
+    </aside>
+
+    {# ── Obsah stránky ── #}
+    <div class="flex-1 min-w-0">
+        {% block admin_body %}{% endblock %}
+    </div>
+</div>
+{% endblock %}

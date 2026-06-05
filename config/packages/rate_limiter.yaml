@@ -1,0 +1,13 @@
+framework:
+    rate_limiter:
+        # Registrace nových účtů: max 10 za hodinu z jedné IP
+        register_limiter:
+            policy: sliding_window
+            limit:  10
+            interval: '1 hour'
+
+        # Nahrávání souborů (init endpoint): max 50 za hodinu z jedné IP
+        upload_limiter:
+            policy: sliding_window
+            limit:  50
+            interval: '1 hour'

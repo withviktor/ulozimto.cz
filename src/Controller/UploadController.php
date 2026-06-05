@@ -18,6 +18,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Messenger\Envelope;
 use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Messenger\Stamp\TransportNamesStamp;
+use Symfony\Component\RateLimiter\RateLimiterFactory;
 use Symfony\Component\Routing\Attribute\Route;
 
 #[Route('/upload')]
@@ -31,6 +32,7 @@ class UploadController extends AbstractController
         private readonly EntityManagerInterface $em,
         private readonly Security               $security,
         private readonly MessageBusInterface    $bus,
+        private readonly RateLimiterFactory     $uploadLimiter,
     ) {}
 
     // ----------------------------------------------------------------
@@ -63,6 +65,15 @@ class UploadController extends AbstractController
     #[Route('/init', name: 'upload_init', methods: ['POST'])]
     public function init(Request $request): JsonResponse
     {
+        // Rate limit: 50 nahrání za hodinu z jedné IP
+        $limiter = $this->uploadLimiter->create($request->getClientIp());
+        if (!$limiter->consume()->isAccepted()) {
+            return $this->json([
+                'error' => 'Příliš mnoho nahrávání. Zkus to za hodinu.',
+                'code'  => 'RATE_LIMITED',
+            ], 429);
+        }
+
         $data          = json_decode($request->getContent(), true);
         $filename      = $data['filename']     ?? 'soubor';
         $mime          = $data['mimeType']      ?? 'application/octet-stream';

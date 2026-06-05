@@ -1,0 +1,69 @@
+{% extends 'base.html.twig' %}
+{% block title %}Podmínky použití — ulozimto.cz{% endblock %}
+
+{% block body %}
+<div class="max-w-3xl mx-auto prose prose-sm prose-gray">
+    <h1 class="text-3xl font-bold mb-2">Podmínky použití</h1>
+    <p class="text-sm text-gray-400 mb-8">Poslední aktualizace: červen 2026</p>
+
+    <div class="space-y-8 text-sm text-gray-600 leading-relaxed">
+
+        <section>
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">1. Provozovatel služby</h2>
+            <p>Službu <strong>ulozimto.cz</strong> provozuje fyzická nebo právnická osoba uvedená v sekci kontakt. Používáním této služby souhlasíš s těmito podmínkami.</p>
+        </section>
+
+        <section>
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">2. Popis služby</h2>
+            <p>ulozimto.cz je platforma pro dočasné sdílení souborů. Každý nahraný soubor je po uplynutí zvolené doby platnosti automaticky odstraněn. Soubory jsou antivirově skenovány.</p>
+        </section>
+
+        <section>
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">3. Zakázaný obsah</h2>
+            <p>Je zakázáno nahrávat:</p>
+            <ul class="list-disc ml-5 mt-2 space-y-1">
+                <li>malware, viry, exploity nebo jiný škodlivý software</li>
+                <li>dětskou pornografii nebo jiný nelegální obsah</li>
+                <li>obsah porušující autorská práva třetích stran</li>
+                <li>osobní údaje třetích osob bez jejich souhlasu</li>
+                <li>obsah podněcující nenávist nebo diskriminaci</li>
+            </ul>
+            <p class="mt-2">Porušení těchto pravidel vede k okamžitému odstranění obsahu a zablokování účtu.</p>
+        </section>
+
+        <section>
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">4. Antivirový sken</h2>
+            <p>Každý soubor je po nahrání asynchronně skenován nástrojem ClamAV. Soubory, u nichž je detekována hrozba, jsou automaticky blokovány a odstraněny z úložiště. Přítomnost skenování nezaručuje detekci 100 % hrozeb.</p>
+        </section>
+
+        <section>
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">5. Omezení odpovědnosti</h2>
+            <p>Provozovatel nenese odpovědnost za:</p>
+            <ul class="list-disc ml-5 mt-2 space-y-1">
+                <li>obsah nahraný uživateli</li>
+                <li>ztrátu dat způsobenou technickou závadou</li>
+                <li>nepřístupnost služby v důsledku plánované i neplánované odstávky</li>
+                <li>škody způsobené stažením infikovaného souboru, který nebyl detekován</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">6. Dostupnost a změny služby</h2>
+            <p>Provozovatel si vyhrazuje právo kdykoliv upravit, omezit nebo ukončit provoz služby, a to i bez předchozího upozornění. Podmínky použití se mohou kdykoli změnit; aktuální znění je vždy dostupné na této stránce.</p>
+        </section>
+
+        <section>
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">7. Rozhodné právo</h2>
+            <p>Tyto podmínky se řídí právním řádem České republiky. Případné spory budou řešeny příslušnými soudy ČR.</p>
+        </section>
+
+        <section>
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">8. Kontakt</h2>
+            <p>Při otázkách týkajících se těchto podmínek nebo nahlášení závadného obsahu nás kontaktuj na:
+               <a href="mailto:admin@ulozimto.cz" class="text-indigo-600 hover:underline">admin@ulozimto.cz</a>
+            </p>
+        </section>
+
+    </div>
+</div>
+{% endblock %}

@@ -1,26 +1,30 @@
 {% extends 'base.html.twig' %}
-{% import 'macros.html.twig' as macros %}
 {% block title %}Moje soubory — ulozimto.cz{% endblock %}
 
-{# Seznam tokenů souborů ve stavu "pending" pro live polling #}
-{% set pendingTokens = [] %}
-{% for file in files %}
-    {% if file.scanStatus == 'pending' %}
-        {% set pendingTokens = pendingTokens|merge([file.shareToken]) %}
-    {% endif %}
-{% endfor %}
-
 {% block body %}
-<div x-data="dashboard({{ pendingTokens|json_encode }})"
-     x-init="init()">
+<div x-data="dashboard({{ filesData|json_encode }}, {{ isPlus ? 'true' : 'false' }}, {{ expirationOptions|json_encode }})"
+     x-init="init()"
+     @keydown.escape.window="closePanel()">
 
-    <div class="flex justify-between items-center mb-5">
+    {# ── Hlavička ── #}
+    <div class="flex flex-wrap gap-3 items-center justify-between mb-5">
         <h1 class="text-2xl font-bold">Moje soubory</h1>
-        <a href="{{ path('upload_index') }}"
-           class="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700 transition">
-            <i data-lucide="plus" class="w-4 h-4"></i>
-            Nahrát nový
-        </a>
+        <div class="flex items-center gap-2">
+            {# Filter #}
+            <select x-model="filterStatus"
+                    class="border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white">
+                <option value="">Vše</option>
+                <option value="clean">Bezpečné</option>
+                <option value="pending">Skenuje se</option>
+                <option value="infected">Hrozba</option>
+                <option value="error">Chyba skenu</option>
+            </select>
+            <a href="{{ path('upload_index') }}"
+               class="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700 transition">
+                <i data-lucide="plus" class="w-4 h-4"></i>
+                Nahrát nový
+            </a>
+        </div>
     </div>
 
     {# ── Storage panel ── #}
@@ -30,20 +34,18 @@
                 <i data-lucide="hard-drive" class="w-4 h-4 text-gray-400"></i>
                 Využití úložiště
             </span>
-            <div class="flex items-center gap-3">
-                {% if not isPlus %}
-                <button @click="$dispatch('show-plus-modal')"
-                        class="inline-flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-700 font-medium transition">
-                    <i data-lucide="zap" class="w-3 h-3"></i>
-                    Získat PLUS
-                </button>
-                {% else %}
-                <span class="inline-flex items-center gap-1 text-xs text-indigo-500 font-medium">
-                    <i data-lucide="zap" class="w-3 h-3"></i>
-                    PLUS
-                </span>
-                {% endif %}
-            </div>
+            {% if not isPlus %}
+            <button @click="$dispatch('show-plus-modal')"
+                    class="inline-flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-700 font-medium transition">
+                <i data-lucide="zap" class="w-3 h-3"></i>
+                Získat PLUS
+            </button>
+            {% else %}
+            <span class="inline-flex items-center gap-1 text-xs text-indigo-500 font-medium">
+                <i data-lucide="zap" class="w-3 h-3"></i>
+                PLUS
+            </span>
+            {% endif %}
         </div>
 
         <div class="w-full bg-gray-100 rounded-full h-2.5 mb-2">
@@ -51,15 +53,14 @@
                 {% if storagePercent >= 90 %}bg-red-500
                 {% elseif storagePercent >= 70 %}bg-amber-500
                 {% else %}bg-indigo-500{% endif %}"
-                 style="width: {{ min(storagePercent, 100) }}%">
-            </div>
+                 style="width: {{ min(storagePercent, 100) }}%"></div>
         </div>
 
         <div class="flex justify-between text-xs text-gray-400">
             <span>
                 {{ (storageUsed / 1073741824)|round(2) }} GB použito
                 z {{ (storageLimit / 1073741824)|round(0) }} GB
-                · {{ files|length }} souborů
+                · <span x-text="visibleFiles.length"></span> / {{ fileCount }} souborů
             </span>
             <span class="{% if storagePercent >= 90 %}text-red-500{% elseif storagePercent >= 70 %}text-amber-500{% endif %}">
                 {{ storagePercent }}% využito
@@ -67,7 +68,8 @@
         </div>
     </div>
 
-    {% if files is empty %}
+    {# ── Prázdný stav ── #}
+    <template x-if="files.length === 0">
         <div class="text-center py-20 text-gray-400">
             <i data-lucide="inbox" class="w-14 h-14 mx-auto mb-4 text-gray-300"></i>
             <p class="font-medium">Zatím jsi nenahrál žádné soubory.</p>
@@ -75,113 +77,440 @@
                 Nahrát první soubor
             </a>
         </div>
-    {% else %}
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <table class="w-full text-sm">
-                <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
-                    <tr>
-                        <th class="px-4 py-3 text-left">Soubor</th>
-                        <th class="px-4 py-3 text-center">Stav</th>
-                        <th class="px-4 py-3 text-right">Velikost</th>
-                        <th class="px-4 py-3 text-center">Stažení</th>
-                        <th class="px-4 py-3 text-center">Platnost</th>
-                        <th class="px-4 py-3"></th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                {% for file in files %}
-                    <tr class="hover:bg-gray-50 transition-colors"
-                        x-show="!deleted.includes('{{ file.shareToken }}')">
+    </template>
 
-                        {# Název souboru #}
-                        <td class="px-4 py-3">
-                            <div class="flex items-center gap-2.5">
-                                {{ macros.fileIcon(file.mimeType, 'w-5 h-5 flex-shrink-0') }}
-                                <a href="{{ path('share_show', { token: file.shareToken }) }}"
-                                   class="truncate max-w-xs hover:text-indigo-600 font-medium"
-                                   target="_blank">
-                                    {{ file.originalName }}
-                                </a>
-                                {% if file.passwordProtected %}
-                                    <i data-lucide="lock" class="w-3.5 h-3.5 text-gray-400 flex-shrink-0"></i>
-                                {% endif %}
-                            </div>
-                        </td>
+    {# ── Tabulka ── #}
+    <template x-if="files.length > 0">
+        <div>
+            {# Bulk action bar #}
+            <div x-show="selected.length > 0"
+                 x-cloak
+                 x-transition
+                 class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40
+                        bg-gray-900 text-white rounded-2xl shadow-xl px-5 py-3
+                        flex items-center gap-4 text-sm">
+                <span class="font-medium" x-text="`${selected.length} souborů vybráno`"></span>
+                <button @click="bulkDelete()"
+                        class="flex items-center gap-1.5 bg-red-500 hover:bg-red-600 px-3 py-1.5 rounded-lg transition text-xs font-medium">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    Smazat vybrané
+                </button>
+                <button @click="selected = []"
+                        class="text-gray-400 hover:text-white transition">
+                    <i data-lucide="x" class="w-4 h-4"></i>
+                </button>
+            </div>
 
-                        {# Stav skenování — live #}
-                        <td class="px-4 py-3 text-center">
-
-                            {# Pending — pulzující (live) #}
-                            <span x-show="getScanStatus('{{ file.shareToken }}', '{{ file.scanStatus }}') === 'pending'"
-                                  class="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
-                                <span class="relative flex-shrink-0">
-                                    <i data-lucide="shield" class="w-3 h-3"></i>
-                                    <span class="absolute inset-0 animate-ping rounded-full bg-amber-400 opacity-40"></span>
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+                        <tr>
+                            <th class="px-4 py-3 w-8">
+                                <input type="checkbox"
+                                       class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-400"
+                                       :checked="allSelected"
+                                       @change="toggleSelectAll()">
+                            </th>
+                            <th class="px-4 py-3 text-left cursor-pointer select-none hover:text-gray-700"
+                                @click="sortBy === 'name' ? flipSort() : setSort('name')">
+                                <span class="flex items-center gap-1">
+                                    Soubor
+                                    <i :data-lucide="sortBy === 'name' ? (sortDir === 'asc' ? 'chevron-up' : 'chevron-down') : 'chevrons-up-down'"
+                                       class="w-3 h-3"></i>
                                 </span>
-                                Skenuje se…
-                            </span>
+                            </th>
+                            <th class="px-4 py-3 text-center">Stav</th>
+                            <th class="px-4 py-3 text-right cursor-pointer select-none hover:text-gray-700"
+                                @click="sortBy === 'sizeBytes' ? flipSort() : setSort('sizeBytes')">
+                                <span class="flex items-center justify-end gap-1">
+                                    Velikost
+                                    <i :data-lucide="sortBy === 'sizeBytes' ? (sortDir === 'asc' ? 'chevron-up' : 'chevron-down') : 'chevrons-up-down'"
+                                       class="w-3 h-3"></i>
+                                </span>
+                            </th>
+                            <th class="px-4 py-3 text-center cursor-pointer select-none hover:text-gray-700"
+                                @click="sortBy === 'downloads' ? flipSort() : setSort('downloads')">
+                                <span class="flex items-center justify-center gap-1">
+                                    Stažení
+                                    <i :data-lucide="sortBy === 'downloads' ? (sortDir === 'asc' ? 'chevron-up' : 'chevron-down') : 'chevrons-up-down'"
+                                       class="w-3 h-3"></i>
+                                </span>
+                            </th>
+                            <th class="px-4 py-3 text-center cursor-pointer select-none hover:text-gray-700"
+                                @click="sortBy === 'expiresTs' ? flipSort() : setSort('expiresTs')">
+                                <span class="flex items-center justify-center gap-1">
+                                    Platnost
+                                    <i :data-lucide="sortBy === 'expiresTs' ? (sortDir === 'asc' ? 'chevron-up' : 'chevron-down') : 'chevrons-up-down'"
+                                       class="w-3 h-3"></i>
+                                </span>
+                            </th>
+                            <th class="px-4 py-3 w-24"></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        <template x-for="f in visibleFiles" :key="f.token">
+                            <tr class="hover:bg-gray-50/60 transition-colors group">
 
-                            {# Clean #}
-                            <span x-show="getScanStatus('{{ file.shareToken }}', '{{ file.scanStatus }}') === 'clean'"
-                                  x-cloak
-                                  class="inline-flex items-center gap-1 text-xs text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
-                                <i data-lucide="shield-check" class="w-3 h-3"></i>
-                                Bezpečný
-                            </span>
+                                {# Checkbox #}
+                                <td class="px-4 py-3">
+                                    <input type="checkbox"
+                                           class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-400"
+                                           :checked="selected.includes(f.token)"
+                                           @change="toggleSelect(f.token)">
+                                </td>
 
-                            {# Infected #}
-                            <span x-show="getScanStatus('{{ file.shareToken }}', '{{ file.scanStatus }}') === 'infected'"
-                                  x-cloak
-                                  class="inline-flex items-center gap-1 text-xs text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
-                                <i data-lucide="shield-x" class="w-3 h-3"></i>
-                                Hrozba
-                            </span>
+                                {# Název — inline rename #}
+                                <td class="px-4 py-3 max-w-xs">
+                                    <div class="flex items-center gap-2.5">
+                                        <i :data-lucide="mimeIcon(f.mime)" class="w-5 h-5 flex-shrink-0 text-gray-400"></i>
 
-                            {# Error #}
-                            <span x-show="getScanStatus('{{ file.shareToken }}', '{{ file.scanStatus }}') === 'error'"
-                                  x-cloak
-                                  class="inline-flex items-center gap-1 text-xs text-gray-400 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full">
-                                <i data-lucide="shield-alert" class="w-3 h-3"></i>
-                                Sken selhal
-                            </span>
+                                        {# Zobrazení — klik zahájí rename #}
+                                        <template x-if="editingToken !== f.token">
+                                            <a :href="f.shareUrl"
+                                               class="truncate font-medium hover:text-indigo-600"
+                                               target="_blank"
+                                               @dblclick.prevent="startRename(f)"
+                                               x-text="f.name"></a>
+                                        </template>
 
-                        </td>
+                                        {# Inline input pro rename #}
+                                        <template x-if="editingToken === f.token">
+                                            <input type="text"
+                                                   x-model="editingName"
+                                                   :data-rename="f.token"
+                                                   @blur="saveRename(f.token)"
+                                                   @keydown.enter.prevent="saveRename(f.token)"
+                                                   @keydown.escape.stop="cancelRename()"
+                                                   class="flex-1 border border-indigo-300 rounded px-2 py-0.5 text-sm
+                                                          focus:outline-none focus:ring-2 focus:ring-indigo-400 min-w-0">
+                                        </template>
 
-                        <td class="px-4 py-3 text-right text-gray-500">{{ file.formattedSize }}</td>
-                        <td class="px-4 py-3 text-center text-gray-500">{{ file.downloadCount }}×</td>
-                        <td class="px-4 py-3 text-center">
-                            <span class="text-xs {% if file.expired %}text-red-500{% else %}text-gray-400{% endif %}">
-                                {{ expiration.getRemainingLabel(file.expiresAt) }}
-                            </span>
-                        </td>
-                        <td class="px-4 py-3 text-right">
-                            <button @click="deleteFile('{{ file.shareToken }}')"
-                                    class="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition">
-                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                            </button>
-                        </td>
-                    </tr>
-                {% endfor %}
-                </tbody>
-            </table>
+                                        <i x-show="f.passwordProtected"
+                                           data-lucide="lock"
+                                           class="w-3.5 h-3.5 text-gray-400 flex-shrink-0"></i>
+                                    </div>
+                                </td>
+
+                                {# Stav skenování #}
+                                <td class="px-4 py-3 text-center">
+                                    <template x-if="getStatus(f.token, f.scanStatus) === 'pending'">
+                                        <span class="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                                            <span class="relative flex-shrink-0">
+                                                <i data-lucide="shield" class="w-3 h-3"></i>
+                                                <span class="absolute inset-0 animate-ping rounded-full bg-amber-400 opacity-40"></span>
+                                            </span>
+                                            Skenuje se…
+                                        </span>
+                                    </template>
+                                    <template x-if="getStatus(f.token, f.scanStatus) === 'clean'">
+                                        <span class="inline-flex items-center gap-1 text-xs text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+                                            <i data-lucide="shield-check" class="w-3 h-3"></i>
+                                            Bezpečný
+                                        </span>
+                                    </template>
+                                    <template x-if="getStatus(f.token, f.scanStatus) === 'infected'">
+                                        <span class="inline-flex items-center gap-1 text-xs text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
+                                            <i data-lucide="shield-x" class="w-3 h-3"></i>
+                                            Hrozba
+                                        </span>
+                                    </template>
+                                    <template x-if="getStatus(f.token, f.scanStatus) === 'error'">
+                                        <span class="inline-flex items-center gap-1 text-xs text-gray-400 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full">
+                                            <i data-lucide="shield-alert" class="w-3 h-3"></i>
+                                            Sken selhal
+                                        </span>
+                                    </template>
+                                </td>
+
+                                <td class="px-4 py-3 text-right text-gray-500 whitespace-nowrap" x-text="f.sizeFormatted"></td>
+                                <td class="px-4 py-3 text-center text-gray-500" x-text="f.downloads + '×'"></td>
+                                <td class="px-4 py-3 text-center whitespace-nowrap">
+                                    <span :class="f.expired ? 'text-red-500' : 'text-gray-400'"
+                                          class="text-xs"
+                                          x-text="f.expiresLabel"></span>
+                                </td>
+
+                                {# Akce #}
+                                <td class="px-4 py-3">
+                                    <div class="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        {# Kopírovat odkaz #}
+                                        <button @click="copyLink(f)"
+                                                :title="copiedToken === f.token ? 'Zkopírováno!' : 'Kopírovat odkaz'"
+                                                class="text-gray-400 hover:text-indigo-500 transition">
+                                            <i :data-lucide="copiedToken === f.token ? 'check' : 'copy'" class="w-3.5 h-3.5"></i>
+                                        </button>
+
+                                        {# Upravit #}
+                                        <button @click="openPanel(f)"
+                                                title="Upravit"
+                                                class="text-gray-400 hover:text-indigo-500 transition">
+                                            <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+                                        </button>
+
+                                        {# Smazat #}
+                                        <button @click="deleteFile(f.token)"
+                                                title="Smazat"
+                                                class="text-gray-400 hover:text-red-500 transition">
+                                            <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </template>
+
+                        {# Žádné výsledky po filtraci #}
+                        <tr x-show="visibleFiles.length === 0">
+                            <td colspan="7" class="px-4 py-10 text-center text-gray-400 text-sm">
+                                Žádné soubory neodpovídají filtru.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
-    {% endif %}
+    </template>
+
+    {# ══════════════════════════════════════════════════════════════════
+       EDIT PANEL — slide-in zprava
+    ══════════════════════════════════════════════════════════════════ #}
+
+    {# Backdrop #}
+    <div x-show="panel !== null"
+         x-cloak
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         @click="closePanel()"
+         class="fixed inset-0 bg-black/30 z-40"></div>
+
+    {# Panel #}
+    <div x-show="panel !== null"
+         x-cloak
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 translate-x-8"
+         x-transition:enter-end="opacity-100 translate-x-0"
+         x-transition:leave="transition ease-in duration-150"
+         x-transition:leave-start="opacity-100 translate-x-0"
+         x-transition:leave-end="opacity-0 translate-x-8"
+         class="fixed right-0 top-0 bottom-0 w-full max-w-md bg-white shadow-2xl z-50 flex flex-col"
+         @click.stop>
+
+        <template x-if="panel !== null">
+            <div class="flex flex-col h-full">
+                {# Header #}
+                <div class="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                    <h2 class="font-semibold text-gray-900 flex items-center gap-2">
+                        <i data-lucide="pencil" class="w-4 h-4 text-gray-400"></i>
+                        Upravit soubor
+                    </h2>
+                    <button @click="closePanel()" class="text-gray-400 hover:text-gray-600 transition">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                {# Body #}
+                <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
+
+                    {# Název #}
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1.5">Název souboru</label>
+                        <input type="text"
+                               x-model="panel.editName"
+                               maxlength="255"
+                               class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm
+                                      focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                    </div>
+
+                    {# Platnost #}
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1.5">Prodloužit platnost</label>
+                        <select x-model="panel.editExpireHours"
+                                class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm
+                                       focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                            <option value="">— Neměnit —</option>
+                            <template x-for="[hours, label] in Object.entries(expirationOptions)" :key="hours">
+                                <option :value="hours" x-text="label"></option>
+                            </template>
+                        </select>
+                        <p class="text-xs text-gray-400 mt-1" x-text="`Aktuálně: ${panel.expiresLabel}`"></p>
+                    </div>
+
+                    {# Heslo #}
+                    <div>
+                        <label class="block text-xs font-medium text-gray-500 mb-1.5">
+                            <span x-text="panel.passwordProtected ? 'Změnit heslo' : 'Nastavit heslo'"></span>
+                        </label>
+                        <input type="password"
+                               x-model="panel.editPassword"
+                               placeholder="Nové heslo (prázdné = ponechat beze změny)"
+                               class="w-full border border-gray-200 rounded-lg px-3 py-2.5 text-sm
+                                      focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                        <template x-if="panel.passwordProtected">
+                            <label class="flex items-center gap-2 mt-2 text-sm text-gray-600 cursor-pointer">
+                                <input type="checkbox" x-model="panel.editClearPassword" class="rounded">
+                                Odebrat ochranu heslem
+                            </label>
+                        </template>
+                    </div>
+
+                    {# Vlastní alias — jen PLUS #}
+                    <template x-if="isPlus">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
+                                <i data-lucide="zap" class="w-3 h-3 text-indigo-500"></i>
+                                Vlastní alias (PLUS)
+                            </label>
+                            <div class="flex items-center border border-gray-200 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-indigo-400">
+                                <span class="px-3 py-2.5 text-xs text-gray-400 bg-gray-50 border-r border-gray-200 flex-shrink-0">/s/</span>
+                                <input type="text"
+                                       x-model="panel.editAlias"
+                                       placeholder="muj-soubor"
+                                       pattern="[a-zA-Z0-9\-_]+"
+                                       maxlength="80"
+                                       class="flex-1 px-3 py-2.5 text-sm focus:outline-none">
+                            </div>
+                        </div>
+                    </template>
+
+                    {# Share odkaz #}
+                    <div class="bg-gray-50 rounded-xl p-4">
+                        <p class="text-xs font-medium text-gray-500 mb-2">Odkaz ke sdílení</p>
+                        <div class="flex gap-2">
+                            <input type="text" :value="window.location.origin + panel.shareUrl" readonly
+                                   class="flex-1 text-xs bg-white border border-gray-200 rounded-lg px-3 py-2 select-all text-gray-600">
+                            <button @click="copyLink(panel)"
+                                    class="flex-shrink-0 bg-indigo-50 text-indigo-600 px-3 py-2 rounded-lg hover:bg-indigo-100 transition text-xs font-medium flex items-center gap-1">
+                                <i :data-lucide="copiedToken === panel.token ? 'check' : 'copy'" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                {# Footer #}
+                <div class="px-6 py-4 border-t border-gray-100 flex gap-3">
+                    <button @click="savePanel()"
+                            :disabled="panelLoading"
+                            class="flex-1 bg-indigo-600 text-white font-medium py-2.5 rounded-xl
+                                   hover:bg-indigo-700 disabled:opacity-60 transition flex items-center justify-center gap-2">
+                        <template x-if="!panelLoading">
+                            <span class="flex items-center gap-2">
+                                <i data-lucide="save" class="w-4 h-4"></i>
+                                Uložit změny
+                            </span>
+                        </template>
+                        <template x-if="panelLoading">
+                            <span class="flex items-center gap-2">
+                                <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                                </svg>
+                                Ukládám…
+                            </span>
+                        </template>
+                    </button>
+                    <button @click="closePanel()"
+                            class="px-5 py-2.5 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition">
+                        Zrušit
+                    </button>
+                </div>
+            </div>
+        </template>
+    </div>
+
 </div>
 {% endblock %}
 
 {% block page_scripts %}
 <script>
-function dashboard(pendingTokens) {
-    return {
-        deleted: [],
-        scanStatuses: {},  // token → status
+function mimeIcon(mime = '') {
+    if (mime.startsWith('image/'))  return 'file-image';
+    if (mime.startsWith('video/'))  return 'file-video';
+    if (mime.startsWith('audio/'))  return 'file-audio';
+    if (mime.includes('zip') || mime.includes('tar') || mime.includes('rar') || mime.includes('7z')) return 'archive';
+    if (mime.includes('pdf'))       return 'file-text';
+    if (mime.startsWith('text/'))   return 'file-text';
+    if (mime.includes('json') || mime.includes('javascript') || mime.includes('html') || mime.includes('css')) return 'file-code';
+    return 'file';
+}
 
+function dashboard(allFiles, isPlus, expirationOptions) {
+    return {
+        files:        allFiles,
+        isPlus:       isPlus,
+        expirationOptions: expirationOptions,
+        scanStatuses: {},
+
+        // ── Sort ──────────────────────────────────────────────────────
+        sortBy:  'createdTs',
+        sortDir: 'desc',
+
+        // ── Filter ────────────────────────────────────────────────────
+        filterStatus: '',
+
+        // ── Rename ────────────────────────────────────────────────────
+        editingToken: null,
+        editingName:  '',
+
+        // ── Bulk ──────────────────────────────────────────────────────
+        selected: [],
+
+        // ── Edit panel ────────────────────────────────────────────────
+        panel:        null,
+        panelLoading: false,
+
+        // ── Copy feedback ─────────────────────────────────────────────
+        copiedToken: null,
+
+        // ── Computed ──────────────────────────────────────────────────
+        get visibleFiles() {
+            let result = this.files
+                .filter(f => this.filterStatus === '' || this.getStatus(f.token, f.scanStatus) === this.filterStatus);
+
+            result = [...result].sort((a, b) => {
+                let va = a[this.sortBy];
+                let vb = b[this.sortBy];
+                if (typeof va === 'string') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
+                if (va < vb) return this.sortDir === 'asc' ? -1 : 1;
+                if (va > vb) return this.sortDir === 'asc' ?  1 : -1;
+                return 0;
+            });
+
+            return result;
+        },
+
+        get allSelected() {
+            const vis = this.visibleFiles.map(f => f.token);
+            return vis.length > 0 && vis.every(t => this.selected.includes(t));
+        },
+
+        // ── Init ──────────────────────────────────────────────────────
         init() {
-            // Inicializovat pending tokeny a spustit polling pro každý
-            for (const token of pendingTokens) {
-                this.scanStatuses[token] = 'pending';
-                this._pollToken(token);
+            for (const f of this.files) {
+                if (f.scanStatus === 'pending') {
+                    this.scanStatuses[f.token] = 'pending';
+                    this._pollToken(f.token);
+                }
             }
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        // ── Sort ──────────────────────────────────────────────────────
+        setSort(field) {
+            this.sortBy  = field;
+            this.sortDir = 'asc';
+            this.$nextTick(() => lucide.createIcons());
+        },
+        flipSort() {
+            this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        // ── Scan ──────────────────────────────────────────────────────
+        getStatus(token, fallback) {
+            return this.scanStatuses[token] ?? fallback;
         },
 
         async _pollToken(token) {
@@ -193,25 +522,166 @@ function dashboard(pendingTokens) {
                     const data = await res.json();
                     this.scanStatuses[token] = data.status;
                     if (data.status !== 'pending') {
-                        // Status se změnil — aktualizovat Lucide ikony v řádku
+                        // Aktualizovat stav v poli files
+                        const f = this.files.find(x => x.token === token);
+                        if (f) f.scanStatus = data.status;
                         this.$nextTick(() => lucide.createIcons());
                     }
-                } catch (_) { /* síťová chyba, opakovat */ }
+                } catch (_) {}
             }
         },
 
-        getScanStatus(token, fallback) {
-            return this.scanStatuses[token] ?? fallback;
+        mimeIcon,
+
+        // ── Rename ────────────────────────────────────────────────────
+        startRename(f) {
+            this.editingToken = f.token;
+            this.editingName  = f.name;
+            this.$nextTick(() => {
+                const el = document.querySelector(`[data-rename="${f.token}"]`);
+                if (el) { el.focus(); el.select(); }
+            });
+        },
+
+        cancelRename() {
+            this.editingToken = null;
+            this.editingName  = '';
+        },
+
+        async saveRename(token) {
+            const name = this.editingName.trim();
+            this.editingToken = null;
+            this.editingName  = '';
+            if (!name) return;
+
+            const res = await fetch(`/dashboard/update/${token}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                const f = this.files.find(x => x.token === token);
+                if (f) f.name = data.name;
+            }
+        },
+
+        // ── Copy ──────────────────────────────────────────────────────
+        async copyLink(f) {
+            try {
+                await navigator.clipboard.writeText(window.location.origin + f.shareUrl);
+                this.copiedToken = f.token;
+                this.$nextTick(() => lucide.createIcons());
+                setTimeout(() => {
+                    this.copiedToken = null;
+                    this.$nextTick(() => lucide.createIcons());
+                }, 1500);
+            } catch (_) {}
+        },
+
+        // ── Bulk ──────────────────────────────────────────────────────
+        toggleSelect(token) {
+            const idx = this.selected.indexOf(token);
+            if (idx === -1) this.selected.push(token);
+            else this.selected.splice(idx, 1);
+        },
+
+        toggleSelectAll() {
+            const vis = this.visibleFiles.map(f => f.token);
+            if (this.allSelected) {
+                this.selected = this.selected.filter(t => !vis.includes(t));
+            } else {
+                for (const t of vis) {
+                    if (!this.selected.includes(t)) this.selected.push(t);
+                }
+            }
+        },
+
+        async bulkDelete() {
+            if (!confirm(`Opravdu smazat ${this.selected.length} souborů? Tato akce je nevratná.`)) return;
+            const tokens = [...this.selected];
+            const res = await fetch('/dashboard/bulk-delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tokens }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                this.files = this.files.filter(f => !data.deleted.includes(f.token));
+                this.selected = this.selected.filter(t => !data.deleted.includes(t));
+            }
         },
 
         async deleteFile(token) {
-            if (!confirm('Opravdu smazat soubor?')) return;
+            if (!confirm('Opravdu smazat soubor? Tato akce je nevratná.')) return;
             const res = await fetch(`/dashboard/delete/${token}`, { method: 'POST' });
             if (res.ok) {
-                this.deleted.push(token);
-                // Zastavit polling pokud soubor byl smazán
-                this.scanStatuses[token] = 'deleted';
+                this.files   = this.files.filter(f => f.token !== token);
+                this.selected = this.selected.filter(t => t !== token);
+                if (this.panel?.token === token) this.panel = null;
             }
+        },
+
+        // ── Edit panel ────────────────────────────────────────────────
+        openPanel(f) {
+            this.panel = {
+                ...f,
+                editName:          f.name,
+                editAlias:         f.customAlias ?? '',
+                editPassword:      '',
+                editClearPassword: false,
+                editExpireHours:   '',
+            };
+            this.$nextTick(() => lucide.createIcons());
+        },
+
+        closePanel() {
+            this.panel = null;
+        },
+
+        async savePanel() {
+            if (!this.panel) return;
+            this.panelLoading = true;
+
+            const payload = { name: this.panel.editName };
+
+            if (this.panel.editClearPassword) {
+                payload.password = null;
+            } else if (this.panel.editPassword) {
+                payload.password = this.panel.editPassword;
+            }
+
+            if (this.panel.editExpireHours) {
+                payload.expireHours = parseInt(this.panel.editExpireHours);
+            }
+
+            if (this.isPlus) {
+                payload.customAlias = this.panel.editAlias;
+            }
+
+            const res = await fetch(`/dashboard/update/${this.panel.token}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                const f = this.files.find(x => x.token === this.panel.token);
+                if (f) {
+                    f.name              = data.name;
+                    f.customAlias       = data.customAlias;
+                    f.passwordProtected = data.passwordProtected;
+                    f.expiresLabel      = data.expiresLabel;
+                    f.expiresTs         = data.expiresTs;
+                    f.expiresAt         = data.expiresAt;
+                    f.expired           = data.expired;
+                    f.shareUrl          = data.shareUrl;
+                }
+                this.closePanel();
+            }
+
+            this.panelLoading = false;
         },
     };
 }

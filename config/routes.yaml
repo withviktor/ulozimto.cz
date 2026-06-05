@@ -11,8 +11,4 @@ controllers:
     resource: '../src/Controller/'
     type: attribute
 
-homepage:
-    path: /
-    controller: Symfony\Bundle\FrameworkBundle\Controller\RedirectController
-    defaults:
-        route: upload_index
+# Úvodní stránka je obsluhována HomeController #[Route('/')]

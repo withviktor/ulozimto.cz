@@ -1,0 +1,30 @@
+{% extends 'base.html.twig' %}
+{% block title %}Stránka nenalezena (404) — ulozimto.cz{% endblock %}
+
+{% block body %}
+<div class="flex flex-col items-center justify-center py-24 text-center px-4">
+    <div class="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-6">
+        <i data-lucide="file-question" class="w-8 h-8 text-gray-400"></i>
+    </div>
+
+    <h1 class="text-6xl font-extrabold text-gray-200 mb-2">404</h1>
+    <h2 class="text-xl font-semibold text-gray-700 mb-3">Stránka nenalezena</h2>
+    <p class="text-gray-500 text-sm max-w-sm mb-8">
+        Stránka, kterou hledáš, neexistuje nebo byl soubor odstraněn.
+        Možná vypršela platnost sdíleného odkazu.
+    </p>
+
+    <div class="flex flex-col sm:flex-row gap-3">
+        <a href="{{ path('upload_index') }}"
+           class="inline-flex items-center gap-2 bg-indigo-600 text-white font-medium px-6 py-2.5 rounded-xl hover:bg-indigo-700 transition text-sm">
+            <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+            Nahrát soubor
+        </a>
+        <a href="{{ path('homepage') }}"
+           class="inline-flex items-center gap-2 bg-white text-gray-600 font-medium px-6 py-2.5 rounded-xl hover:bg-gray-50 border border-gray-200 transition text-sm">
+            <i data-lucide="home" class="w-4 h-4"></i>
+            Domovská stránka
+        </a>
+    </div>
+</div>
+{% endblock %}

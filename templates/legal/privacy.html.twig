@@ -1,0 +1,112 @@
+{% extends 'base.html.twig' %}
+{% block title %}Ochrana osobních údajů — ulozimto.cz{% endblock %}
+
+{% block body %}
+<div class="max-w-3xl mx-auto">
+    <h1 class="text-3xl font-bold mb-2">Ochrana osobních údajů</h1>
+    <p class="text-sm text-gray-400 mb-8">Poslední aktualizace: červen 2026 · GDPR (Nařízení EU 2016/679)</p>
+
+    <div class="space-y-8 text-sm text-gray-600 leading-relaxed">
+
+        <section>
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">1. Správce osobních údajů</h2>
+            <p>Správcem osobních údajů je provozovatel služby ulozimto.cz. Kontakt pro záležitosti ochrany osobních údajů:
+               <a href="mailto:gdpr@ulozimto.cz" class="text-indigo-600 hover:underline">gdpr@ulozimto.cz</a>
+            </p>
+        </section>
+
+        <section>
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">2. Jaké údaje zpracováváme</h2>
+            <div class="overflow-x-auto">
+                <table class="w-full border border-gray-200 rounded-xl overflow-hidden text-xs">
+                    <thead class="bg-gray-50 text-gray-500 uppercase tracking-wider">
+                        <tr>
+                            <th class="px-4 py-2.5 text-left">Údaj</th>
+                            <th class="px-4 py-2.5 text-left">Účel</th>
+                            <th class="px-4 py-2.5 text-left">Právní základ</th>
+                            <th class="px-4 py-2.5 text-left">Uložení</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                        <tr>
+                            <td class="px-4 py-2.5 font-medium">E-mailová adresa</td>
+                            <td class="px-4 py-2.5">Přihlášení, oznámení</td>
+                            <td class="px-4 py-2.5">Plnění smlouvy (čl. 6/1/b)</td>
+                            <td class="px-4 py-2.5">Po dobu trvání účtu</td>
+                        </tr>
+                        <tr class="bg-gray-50/50">
+                            <td class="px-4 py-2.5 font-medium">Hashované heslo</td>
+                            <td class="px-4 py-2.5">Autentizace</td>
+                            <td class="px-4 py-2.5">Plnění smlouvy (čl. 6/1/b)</td>
+                            <td class="px-4 py-2.5">Po dobu trvání účtu</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2.5 font-medium">Zobrazované jméno, avatar</td>
+                            <td class="px-4 py-2.5">Personalizace</td>
+                            <td class="px-4 py-2.5">Souhlas (čl. 6/1/a)</td>
+                            <td class="px-4 py-2.5">Do smazání / odvolání souhlasu</td>
+                        </tr>
+                        <tr class="bg-gray-50/50">
+                            <td class="px-4 py-2.5 font-medium">Metadata souborů</td>
+                            <td class="px-4 py-2.5">Provoz služby</td>
+                            <td class="px-4 py-2.5">Plnění smlouvy (čl. 6/1/b)</td>
+                            <td class="px-4 py-2.5">Do expirace souboru</td>
+                        </tr>
+                        <tr>
+                            <td class="px-4 py-2.5 font-medium">IP adresa</td>
+                            <td class="px-4 py-2.5">Bezpečnost (rate limiting)</td>
+                            <td class="px-4 py-2.5">Oprávněný zájem (čl. 6/1/f)</td>
+                            <td class="px-4 py-2.5">V paměti, krátkodobě</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section>
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">3. Anonymní nahrávání</h2>
+            <p>Soubory nahrané bez registrace nejsou spojeny s žádným účtem. Uchovává se pouze obsah souboru a jeho metadata (název, MIME typ, velikost, platnost, token). Soubor je automaticky odstraněn po uplynutí zvolené platnosti.</p>
+        </section>
+
+        <section>
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">4. Sdílení s třetími stranami</h2>
+            <p>Osobní údaje <strong>nejsou prodávány</strong> třetím stranám. Mohou být předány:</p>
+            <ul class="list-disc ml-5 mt-2 space-y-1">
+                <li><strong>Resend</strong> (resend.com) — pro odesílání transakčních e-mailů; zpracovatel v EU/USA se zároverou standardních smluvních doložek</li>
+                <li><strong>Orgánům veřejné moci</strong> — pouze na základě zákonné povinnosti</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">5. Tvá práva</h2>
+            <div class="grid sm:grid-cols-2 gap-3">
+                {% for right, desc in {
+                    'Přístup': 'Máš právo vědět, jaké údaje o tobě zpracováváme.',
+                    'Oprava': 'Můžeš požádat o opravu nepřesných údajů (e-mail, jméno lze změnit v profilu).',
+                    'Výmaz': 'Můžeš smazat svůj účet a všechna data v sekci Profil → Nebezpečná zóna.',
+                    'Přenositelnost': 'Stáhni export svých dat ve formátu JSON v sekci Profil → Export dat.',
+                    'Omezení zpracování': 'Za určitých podmínek máš právo požádat o omezení zpracování.',
+                    'Námitka': 'Máš právo vznést námitku proti zpracování na základě oprávněného zájmu.'
+                } %}
+                <div class="bg-gray-50 rounded-xl p-4">
+                    <p class="font-semibold text-gray-900 text-xs uppercase tracking-wide mb-1">{{ right }}</p>
+                    <p class="text-xs text-gray-500">{{ desc }}</p>
+                </div>
+                {% endfor %}
+            </div>
+            <p class="mt-4">Svá práva uplatni e-mailem na <a href="mailto:gdpr@ulozimto.cz" class="text-indigo-600 hover:underline">gdpr@ulozimto.cz</a>. Na žádost odpovíme do 30 dnů.</p>
+        </section>
+
+        <section>
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">6. Cookies a místní úložiště</h2>
+            <p>Používáme pouze session cookies nezbytné pro přihlášení a zabezpečení (CSRF). Žádné analytické ani marketingové cookies nejsou nasazeny.</p>
+        </section>
+
+        <section>
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">7. Stížnost u dozorového úřadu</h2>
+            <p>Pokud se domníváš, že zpracování tvých osobních údajů porušuje GDPR, máš právo podat stížnost u <strong>Úřadu pro ochranu osobních údajů</strong> (<a href="https://www.uoou.cz" class="text-indigo-600 hover:underline" target="_blank" rel="noopener">uoou.cz</a>).</p>
+        </section>
+
+    </div>
+</div>
+{% endblock %}

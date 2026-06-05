@@ -118,6 +118,7 @@
       <excludeFolder url="file://$MODULE_DIR$/vendor/symfony/process" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/symfony/property-access" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/symfony/property-info" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/symfony/rate-limiter" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/symfony/redis-messenger" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/symfony/resend-mailer" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/symfony/routing" />

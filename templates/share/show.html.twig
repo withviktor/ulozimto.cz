@@ -31,7 +31,9 @@
 
     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
 
-        {# ── Preview sekce — řízena Alpine ── #}
+        {# ══════════════════════════════════════════════════════════════
+           PREVIEW — typ závisí na MIME
+        ══════════════════════════════════════════════════════════════ #}
 
         {# Obrázek #}
         <template x-if="scanStatus === 'clean' && isImage">
@@ -46,25 +48,59 @@
         <template x-if="scanStatus === 'clean' && isVideo">
             <div class="bg-black">
                 <video :src="previewUrl"
-                       controls
-                       preload="metadata"
+                       controls preload="metadata"
                        class="w-full max-h-96 object-contain">
                     Váš prohlížeč nepodporuje přehrávání videa.
                 </video>
             </div>
         </template>
 
-        {# Ostatní soubory / čeká na sken — velká ikona #}
-        <template x-if="scanStatus !== 'clean' || (!isImage && !isVideo)">
+        {# Audio #}
+        <template x-if="scanStatus === 'clean' && isAudio">
+            <div class="bg-gray-50 flex flex-col items-center justify-center py-10 px-6">
+                <i data-lucide="music" class="w-16 h-16 text-yellow-400 mb-4"></i>
+                <p class="text-sm text-gray-500 mb-4 font-medium">{{ file.originalName }}</p>
+                <audio :src="previewUrl" controls preload="metadata" class="w-full max-w-sm">
+                    Váš prohlížeč nepodporuje přehrávání zvuku.
+                </audio>
+            </div>
+        </template>
+
+        {# PDF — inline iframe #}
+        <template x-if="scanStatus === 'clean' && isPdf">
+            <div class="w-full" style="height:520px;">
+                <iframe :src="previewUrl + '#toolbar=1'"
+                        class="w-full h-full border-0"
+                        title="{{ file.originalName|e('html_attr') }}">
+                    Váš prohlížeč nepodporuje zobrazení PDF.
+                </iframe>
+            </div>
+        </template>
+
+        {# Prostý text #}
+        <template x-if="scanStatus === 'clean' && isText">
+            <div class="bg-gray-950 rounded-t-none overflow-hidden">
+                <div class="flex items-center justify-between px-4 py-2 bg-gray-800 text-gray-400 text-xs">
+                    <span class="font-mono">{{ file.originalName }}</span>
+                    <span x-show="textTruncated" class="text-amber-400">Zobrazeno prvních 100 KB</span>
+                </div>
+                <pre class="overflow-auto max-h-96 p-4 text-xs text-gray-200 font-mono leading-relaxed"
+                     x-text="textContent ?? 'Načítám…'"></pre>
+            </div>
+        </template>
+
+        {# Fallback — velká ikona (ZIP, exe, atp.) + čekání na sken #}
+        <template x-if="scanStatus !== 'clean' || (!isImage && !isVideo && !isAudio && !isPdf && !isText)">
             <div class="flex items-center justify-center py-12 bg-gray-50">
                 {{ macros.fileIcon(file.mimeType, 'w-20 h-20') }}
             </div>
         </template>
 
-        {# ── Scan status banner — živý ── #}
+        {# ══════════════════════════════════════════════════════════════
+           SCAN STATUS BANNER
+        ══════════════════════════════════════════════════════════════ #}
         <div class="px-6 pt-5 pb-0">
 
-            {# Pending #}
             <div x-show="scanStatus === 'pending'"
                  class="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700 mb-4">
                 <span class="relative flex-shrink-0">
@@ -82,30 +118,28 @@
                 </span>
             </div>
 
-            {# Clean #}
             <div x-show="scanStatus === 'clean'" x-cloak
                  class="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-4 py-2.5 text-sm text-green-700 mb-4">
                 <i data-lucide="shield-check" class="w-4 h-4 flex-shrink-0"></i>
                 Soubor prošel antivirovým skenem — je bezpečný.
             </div>
 
-            {# Infected #}
             <div x-show="scanStatus === 'infected'" x-cloak
                  class="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 text-sm text-red-700 mb-4">
                 <i data-lucide="shield-x" class="w-4 h-4 flex-shrink-0"></i>
                 Hrozba detekována — soubor byl zablokován a odstraněn.
             </div>
 
-            {# Error — fail open #}
             <div x-show="scanStatus === 'error'" x-cloak
                  class="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-500 mb-4">
                 <i data-lucide="shield-alert" class="w-4 h-4 flex-shrink-0"></i>
                 Antivirový sken selhal — soubor je dostupný.
             </div>
-
         </div>
 
-        {# ── Info o souboru ── #}
+        {# ══════════════════════════════════════════════════════════════
+           INFO O SOUBORU + STAŽENÍ
+        ══════════════════════════════════════════════════════════════ #}
         <div class="px-6 pb-6">
             <div class="flex items-start gap-3 mb-5">
                 <div class="flex-shrink-0 mt-0.5">
@@ -128,7 +162,7 @@
                 {% endif %}
             </div>
 
-            {# Stažení — dostupné jen pokud clean #}
+            {# Stažení #}
             <a x-show="scanStatus === 'clean' || scanStatus === 'error'" x-cloak
                href="{{ path('share_download', { token: file.shareToken }) }}"
                class="flex items-center justify-center gap-2 w-full bg-indigo-600 text-white
@@ -137,7 +171,6 @@
                 Stáhnout soubor
             </a>
 
-            {# Pending — disabled #}
             <button x-show="scanStatus === 'pending'"
                     disabled
                     class="flex items-center justify-center gap-2 w-full bg-gray-100 text-gray-400
@@ -146,7 +179,6 @@
                 Čekám na výsledek skenování…
             </button>
 
-            {# Infected — blokováno #}
             <div x-show="scanStatus === 'infected'" x-cloak
                  class="flex items-center justify-center gap-2 w-full bg-red-50 text-red-400
                         font-medium py-3 px-6 rounded-xl border border-red-200">
@@ -166,33 +198,63 @@
 <script>
 function sharePage(initialStatus, token, mimeType) {
     return {
-        scanStatus: initialStatus,
-        elapsed: 0,
-        previewUrl: `/s/${token}/preview`,
-        _timer: null,
-        _poller: null,
+        scanStatus:  initialStatus,
+        elapsed:     0,
+        previewUrl:  `/s/${token}/preview`,
+        textContent: null,
+        textTruncated: false,
+        _timer:   null,
+        _poller:  null,
 
         get isImage() { return mimeType.startsWith('image/'); },
         get isVideo() { return mimeType.startsWith('video/'); },
+        get isAudio() { return mimeType.startsWith('audio/'); },
+        get isPdf()   { return mimeType === 'application/pdf'; },
+        get isText()  { return mimeType.startsWith('text/') || mimeType === 'application/json'; },
 
         init() {
+            if (this.scanStatus === 'clean') {
+                this._loadTextIfNeeded();
+                return;
+            }
             if (this.scanStatus !== 'pending') return;
-            // Sekundoměr
-            this._timer = setInterval(() => this.elapsed++, 1000);
-            // Polling
+
+            this._timer  = setInterval(() => this.elapsed++, 1000);
             this._poller = setInterval(async () => {
                 try {
-                    const res = await fetch(`/s/${token}/status`);
+                    const res  = await fetch(`/s/${token}/status`);
                     if (!res.ok) return;
                     const data = await res.json();
                     if (data.status !== 'pending') {
                         this.scanStatus = data.status;
+                        if (data.previewUrl) this.previewUrl = data.previewUrl;
                         clearInterval(this._timer);
                         clearInterval(this._poller);
-                        this.$nextTick(() => lucide.createIcons());
+                        this.$nextTick(() => {
+                            lucide.createIcons();
+                            this._loadTextIfNeeded();
+                        });
                     }
                 } catch (_) {}
             }, 2000);
+        },
+
+        async _loadTextIfNeeded() {
+            if (!this.isText || this.textContent !== null) return;
+            try {
+                const res  = await fetch(this.previewUrl);
+                if (!res.ok) { this.textContent = '(Chyba při načítání)'; return; }
+                const text = await res.text();
+                const MAX  = 100 * 1024; // 100 KB
+                if (text.length > MAX) {
+                    this.textContent   = text.slice(0, MAX);
+                    this.textTruncated = true;
+                } else {
+                    this.textContent = text;
+                }
+            } catch (_) {
+                this.textContent = '(Chyba při načítání)';
+            }
         },
     };
 }

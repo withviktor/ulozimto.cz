@@ -1,0 +1,15 @@
+User-agent: *
+Disallow: /dashboard
+Disallow: /dashboard/
+Disallow: /profile
+Disallow: /profile/
+Disallow: /upload
+Disallow: /upload/
+Disallow: /api/
+Disallow: /auth/
+Disallow: /admin/
+Allow: /auth/login
+Allow: /auth/register
+Allow: /s/
+
+Sitemap: https://ulozimto.cz/sitemap.xml

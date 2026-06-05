@@ -1,0 +1,101 @@
+{% extends 'admin/layout.html.twig' %}
+{% block title %}Admin — ulozimto.cz{% endblock %}
+
+{% block admin_body %}
+<h1 class="text-2xl font-bold mb-6">Přehled</h1>
+
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-medium text-gray-400 uppercase tracking-wider">Uživatelé</span>
+            <div class="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
+                <i data-lucide="users" class="w-4 h-4 text-indigo-600"></i>
+            </div>
+        </div>
+        <p class="text-3xl font-bold text-gray-900">{{ stats.users }}</p>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-medium text-gray-400 uppercase tracking-wider">Soubory</span>
+            <div class="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
+                <i data-lucide="files" class="w-4 h-4 text-blue-600"></i>
+            </div>
+        </div>
+        <p class="text-3xl font-bold text-gray-900">{{ stats.files }}</p>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-medium text-gray-400 uppercase tracking-wider">Celkem úložiště</span>
+            <div class="w-8 h-8 bg-green-50 rounded-lg flex items-center justify-center">
+                <i data-lucide="hard-drive" class="w-4 h-4 text-green-600"></i>
+            </div>
+        </div>
+        <p class="text-3xl font-bold text-gray-900">
+            {% if stats.storage < 1073741824 %}
+                {{ (stats.storage / 1048576)|round(1) }} MB
+            {% else %}
+                {{ (stats.storage / 1073741824)|round(2) }} GB
+            {% endif %}
+        </p>
+    </div>
+
+    <div class="bg-white rounded-2xl border {% if stats.infected > 0 %}border-red-200 bg-red-50{% else %}border-gray-100{% endif %} shadow-sm p-5">
+        <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-medium {% if stats.infected > 0 %}text-red-400{% else %}text-gray-400{% endif %} uppercase tracking-wider">Infikované</span>
+            <div class="w-8 h-8 {% if stats.infected > 0 %}bg-red-100{% else %}bg-gray-50{% endif %} rounded-lg flex items-center justify-center">
+                <i data-lucide="shield-x" class="w-4 h-4 {% if stats.infected > 0 %}text-red-600{% else %}text-gray-400{% endif %}"></i>
+            </div>
+        </div>
+        <p class="text-3xl font-bold {% if stats.infected > 0 %}text-red-600{% else %}text-gray-900{% endif %}">{{ stats.infected }}</p>
+        {% if stats.infected > 0 %}
+        <a href="{{ path('admin_files', {status: 'infected'}) }}" class="text-xs text-red-500 hover:underline mt-1 inline-block">
+            Zobrazit infikované →
+        </a>
+        {% endif %}
+    </div>
+
+</div>
+
+<div class="grid grid-cols-2 gap-4">
+    <a href="{{ path('admin_users') }}"
+       class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:border-indigo-200 hover:shadow-md transition group">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center group-hover:bg-indigo-100 transition">
+                <i data-lucide="users" class="w-5 h-5 text-indigo-600"></i>
+            </div>
+            <div>
+                <p class="font-semibold text-gray-900">Správa uživatelů</p>
+                <p class="text-xs text-gray-400">Zobrazit všechny účty, změnit plán</p>
+            </div>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-gray-300 ml-auto"></i>
+        </div>
+    </a>
+    <a href="{{ path('admin_files') }}"
+       class="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:border-indigo-200 hover:shadow-md transition group">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center group-hover:bg-blue-100 transition">
+                <i data-lucide="files" class="w-5 h-5 text-blue-600"></i>
+            </div>
+            <div>
+                <p class="font-semibold text-gray-900">Správa souborů</p>
+                <p class="text-xs text-gray-400">Všechny soubory, smazání, filtrování</p>
+            </div>
+            <i data-lucide="chevron-right" class="w-4 h-4 text-gray-300 ml-auto"></i>
+        </div>
+    </a>
+</div>
+
+{% if stats.pending > 0 %}
+<div class="mt-6 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 flex items-center gap-3">
+    <i data-lucide="clock" class="w-5 h-5 text-amber-500 flex-shrink-0"></i>
+    <p class="text-sm text-amber-700">
+        <strong>{{ stats.pending }}</strong> souborů čeká na antivirový sken.
+        <a href="{{ path('admin_files', {status: 'pending'}) }}" class="font-medium hover:underline">Zobrazit →</a>
+    </p>
+</div>
+{% endif %}
+
+{% endblock %}

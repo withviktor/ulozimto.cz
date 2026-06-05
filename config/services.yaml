@@ -46,3 +46,13 @@ services:
         arguments:
             $resendApiKey:     '%env(RESEND_API_KEY)%'
             $resendAudienceId: '%env(RESEND_AUDIENCE_ID)%'
+
+    App\Controller\AuthController:
+        arguments:
+            $mailerFrom:      '%env(MAILER_FROM)%'
+            $mailerFromName:  '%env(MAILER_FROM_NAME)%'
+            $registerLimiter: '@limiter.register_limiter'
+
+    App\Controller\UploadController:
+        arguments:
+            $uploadLimiter: '@limiter.upload_limiter'

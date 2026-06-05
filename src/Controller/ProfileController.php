@@ -276,4 +276,86 @@ class ProfileController extends AbstractController
         $this->addFlash('success', 'Heslo bylo úspěšně změněno.');
         return $this->redirectToRoute('profile');
     }
+
+    // ── GDPR export ──────────────────────────────────────────────────
+
+    #[Route('/export', name: 'profile_export', methods: ['GET'])]
+    public function exportData(): \Symfony\Component\HttpFoundation\JsonResponse
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+
+        $filesData = array_map(static function ($file): array {
+            return [
+                'originalName'  => $file->getOriginalName(),
+                'mimeType'      => $file->getMimeType(),
+                'sizeBytes'     => $file->getSizeBytes(),
+                'downloadCount' => $file->getDownloadCount(),
+                'expiresAt'     => $file->getExpiresAt()->format(\DateTimeInterface::ATOM),
+                'createdAt'     => $file->getCreatedAt()->format(\DateTimeInterface::ATOM),
+                'shareToken'    => $file->getShareToken(),
+                'customAlias'   => $file->getCustomAlias(),
+                'expired'       => $file->isExpired(),
+            ];
+        }, $user->getFiles()->toArray());
+
+        $payload = [
+            'exportedAt' => (new \DateTimeImmutable())->format(\DateTimeInterface::ATOM),
+            'account'    => [
+                'id'        => (string) $user->getId(),
+                'email'     => $user->getEmail(),
+                'name'      => $user->getName(),
+                'plan'      => $user->getPlan(),
+                'createdAt' => $user->getCreatedAt()->format(\DateTimeInterface::ATOM),
+            ],
+            'files' => $filesData,
+        ];
+
+        $response = new \Symfony\Component\HttpFoundation\JsonResponse($payload);
+        $response->headers->set(
+            'Content-Disposition',
+            'attachment; filename="ulozimto-export-' . date('Ymd') . '.json"'
+        );
+        return $response;
+    }
+
+    // ── Smazání účtu ─────────────────────────────────────────────────
+
+    #[Route('/delete-account', name: 'profile_delete_account', methods: ['POST'])]
+    public function deleteAccount(
+        Request $request,
+        \Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorageInterface $tokenStorage,
+        \Symfony\Component\HttpFoundation\RequestStack $requestStack,
+    ): Response {
+        /** @var User $user */
+        $user     = $this->getUser();
+        $password = $request->request->get('password', '');
+
+        if (!$this->hasher->isPasswordValid($user, $password)) {
+            $this->addFlash('error', 'Nesprávné heslo. Účet nebyl smazán.');
+            return $this->redirectToRoute('profile');
+        }
+
+        // Smazat avatar z MinIO
+        $this->avatarService->deleteAvatar($user);
+
+        // Smazat všechny soubory uživatele z MinIO
+        foreach ($user->getFiles() as $file) {
+            try {
+                $this->minio->delete($file->getMinioKey());
+            } catch (\Throwable) {
+                // Pokud soubor v MinIO neexistuje, pokračujeme
+            }
+        }
+
+        // Smazat uživatele z DB (cascade: soubory smazány přes ORM)
+        $this->em->remove($user);
+        $this->em->flush();
+
+        // Invalidovat session
+        $tokenStorage->setToken(null);
+        $requestStack->getSession()->invalidate();
+
+        return $this->redirectToRoute('homepage', [], \Symfony\Component\HttpFoundation\Response::HTTP_SEE_OTHER);
+    }
 }
