@@ -2,6 +2,19 @@
 framework:
     secret: '%env(APP_SECRET)%'
 
+    # Důvěřovat proxy (Nginx Proxy Manager).
+    # REMOTE_ADDR = okamžitá volající IP (nginx kontejner) — bezpečné, protože
+    # na port 8080 se dostane jen NPM přes localhost.
+    # Bez tohoto by $request->isSecure() = false → URL generátor by produkoval
+    # http:// místo https://, cookies by neměly Secure flag, atd.
+    trusted_proxies: 'REMOTE_ADDR'
+    trusted_headers:
+        - 'x-forwarded-for'
+        - 'x-forwarded-host'
+        - 'x-forwarded-proto'
+        - 'x-forwarded-port'
+        - 'x-forwarded-prefix'
+
     # Note that the session will be started ONLY if you read or write from it.
     session:
         handler_id: null
