@@ -1,0 +1,42 @@
+{% extends 'base.html.twig' %}
+{% block title %}Registrace — ulozimto.cz{% endblock %}
+
+{% block body %}
+    <div class="max-w-sm mx-auto">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+            <h1 class="text-xl font-bold text-center mb-6">Vytvořit účet</h1>
+
+            {% if error %}
+                <div class="bg-red-50 text-red-700 text-sm rounded-lg p-3 mb-4">{{ error }}</div>
+            {% endif %}
+
+            <form method="POST">
+                <div class="mb-4">
+                    <label class="block text-xs text-gray-500 mb-1">E-mail</label>
+                    <input type="email" name="email" autofocus required
+                           class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-xs text-gray-500 mb-1">Heslo (min. 8 znaků)</label>
+                    <input type="password" name="password" required minlength="8"
+                           class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-xs text-gray-500 mb-1">Heslo znovu</label>
+                    <input type="password" name="password_confirm" required minlength="8"
+                           class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                </div>
+
+                <button type="submit"
+                        class="w-full bg-indigo-600 text-white font-medium py-3 rounded-xl hover:bg-indigo-700 transition">
+                    Registrovat se
+                </button>
+            </form>
+
+            <p class="text-center text-sm text-gray-400 mt-6">
+                Máš už účet?
+                <a href="{{ path('auth_login') }}" class="text-indigo-600 hover:underline">Přihlás se</a>
+            </p>
+        </div>
+    </div>
+{% endblock %}

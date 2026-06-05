@@ -1,0 +1,33 @@
+framework:
+    messenger:
+        failure_transport: failed
+
+        transports:
+            # https://symfony.com/doc/current/messenger.html#transport-configuration
+            async:
+                dsn: '%env(REDIS_URL)%'
+                options:
+                    stream: messages
+                    group: symfony
+                retry_strategy:
+                    max_retries: 3
+                    delay: 1000
+                    multiplier: 2
+
+            failed:
+                dsn: '%env(REDIS_URL)%'
+                options:
+                    stream: messages_failed
+                    group: symfony
+            # sync: 'sync://'
+
+        default_bus: messenger.bus.default
+
+        buses:
+            messenger.bus.default: []
+
+        routing:
+            App\Message\PurgeExpiredFilesMessage: async
+
+            # Route your messages to the transports
+            # 'App\Message\YourMessage': async

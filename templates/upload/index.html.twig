@@ -1,0 +1,121 @@
+{% extends 'base.html.twig' %}
+{% block title %}Nahrát soubor — ulozimto.cz{% endblock %}
+
+{% block body %}
+<div class="max-w-2xl mx-auto" x-data="uploader"
+     x-init="$watch('files', () => $nextTick(() => lucide.createIcons()))">
+
+    <h1 class="text-3xl font-bold text-center mb-2">Nahraj a sdílej soubory</h1>
+    <p class="text-center text-gray-500 mb-8 text-sm">Fotky, videa, ZIPy, celé složky — zdarma, bez registrace</p>
+
+    {# ── Dropzone ── #}
+    <div
+        @dragover.prevent="dragging = true"
+        @dragleave.prevent="dragging = false"
+        @drop.prevent="onDrop($event)"
+        :class="dragging ? 'border-indigo-500 bg-indigo-50' : 'border-gray-300 bg-white hover:border-indigo-400 hover:bg-gray-50'"
+        class="border-2 border-dashed rounded-2xl p-12 text-center transition cursor-pointer"
+        @click="$refs.fileInput.click()"
+        x-show="!files.length"
+    >
+        <i data-lucide="upload-cloud" class="w-12 h-12 mx-auto mb-4 text-indigo-400"></i>
+        <p class="font-medium text-gray-700">Přetáhni soubory nebo složku sem</p>
+        <p class="text-sm text-gray-400 mt-1">nebo klikni pro výběr</p>
+        <input type="file" multiple x-ref="fileInput" class="hidden" @change="onFileSelect($event)">
+    </div>
+
+    {# ── Vybrané soubory ── #}
+    <div x-show="files.length && !done" x-cloak
+         class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mt-4">
+
+        <div class="flex justify-between items-center mb-4">
+            <span class="font-medium text-sm"
+                  x-text="`${files.length} soubor(ů) — ${formatBytes(totalSize)}`"></span>
+            <button @click="reset()"
+                    class="inline-flex items-center gap-1 text-sm text-gray-400 hover:text-red-500 transition">
+                <i data-lucide="x" class="w-4 h-4"></i>
+                Zrušit
+            </button>
+        </div>
+
+        {# Seznam souborů #}
+        <ul class="text-sm text-gray-600 divide-y divide-gray-100 max-h-48 overflow-y-auto mb-5 -mx-1 px-1">
+            <template x-for="f in files" :key="f.name">
+                <li class="py-2 flex items-center gap-2">
+                    <i :data-lucide="getMimeIcon(f.type)" class="w-4 h-4 flex-shrink-0 text-gray-400"></i>
+                    <span class="truncate flex-1" x-text="f.name"></span>
+                    <span class="text-gray-400 text-xs ml-2 flex-shrink-0" x-text="formatBytes(f.size)"></span>
+                </li>
+            </template>
+        </ul>
+
+        {# Nastavení #}
+        <div class="grid grid-cols-2 gap-4 mb-5">
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">Platnost</label>
+                <select x-model="expireDays"
+                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                    {% for days in allowedDays %}
+                        <option value="{{ days }}" {% if days == defaultDays %}selected{% endif %}>
+                            {{ days }} dní
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs text-gray-500 mb-1">Heslo (volitelně)</label>
+                <input type="password" x-model="password" placeholder="Bez hesla"
+                       class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            </div>
+        </div>
+
+        {# Progress #}
+        <div x-show="uploading" class="mb-4">
+            <div class="flex justify-between text-xs text-gray-500 mb-1.5">
+                <span x-text="statusText"></span>
+                <span x-text="progress + '%'"></span>
+            </div>
+            <div class="w-full bg-gray-100 rounded-full h-1.5">
+                <div class="bg-indigo-500 h-1.5 rounded-full transition-all duration-300"
+                     :style="`width: ${progress}%`"></div>
+            </div>
+        </div>
+
+        <button
+            @click="startUpload()"
+            :disabled="uploading"
+            class="w-full inline-flex items-center justify-center gap-2 bg-indigo-600 text-white
+                   font-medium py-3 rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition active:scale-[.98]">
+            <i data-lucide="upload-cloud" class="w-5 h-5"></i>
+            <span x-show="!uploading">Nahrát soubory</span>
+            <span x-show="uploading" x-cloak>Nahrávám…</span>
+        </button>
+    </div>
+
+    {# ── Výsledek ── #}
+    <div x-show="done" x-cloak
+         class="bg-white rounded-2xl shadow-sm border border-green-200 p-8 mt-4 text-center">
+        <i data-lucide="check-circle-2" class="w-12 h-12 mx-auto mb-4 text-green-500"></i>
+        <h2 class="text-lg font-bold mb-1">Soubor nahrán!</h2>
+        <p class="text-sm text-gray-500 mb-5">Zkopíruj odkaz a sdílej ho:</p>
+        <div class="flex gap-2">
+            <input type="text" :value="shareUrl" readonly
+                   class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 select-all">
+            <button @click="copyLink()"
+                    class="inline-flex items-center gap-1.5 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700 transition">
+                <i data-lucide="copy" class="w-4 h-4"></i>
+                <span x-text="copied ? 'Zkopírováno!' : 'Kopírovat'"></span>
+            </button>
+        </div>
+        <button @click="reset()"
+                class="mt-4 text-sm text-gray-400 hover:text-gray-600 transition">
+            Nahrát další soubor
+        </button>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script src="{{ asset('js/upload.js') }}"></script>
+{% endblock %}

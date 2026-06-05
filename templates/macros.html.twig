@@ -1,0 +1,19 @@
+{% macro fileIcon(mimeType, class='w-8 h-8') %}
+    {% if mimeType starts with 'image/' %}
+        <i data-lucide="file-image" class="{{ class }} text-purple-500"></i>
+    {% elseif mimeType starts with 'video/' %}
+        <i data-lucide="file-video" class="{{ class }} text-pink-500"></i>
+    {% elseif mimeType starts with 'audio/' %}
+        <i data-lucide="file-audio" class="{{ class }} text-yellow-500"></i>
+    {% elseif 'zip' in mimeType or 'x-tar' in mimeType or 'x-rar' in mimeType or '7z' in mimeType or 'gzip' in mimeType %}
+        <i data-lucide="archive" class="{{ class }} text-orange-500"></i>
+    {% elseif 'pdf' in mimeType %}
+        <i data-lucide="file-text" class="{{ class }} text-red-500"></i>
+    {% elseif 'json' in mimeType or 'javascript' in mimeType or 'html' in mimeType or 'css' in mimeType or 'xml' in mimeType %}
+        <i data-lucide="file-code" class="{{ class }} text-green-500"></i>
+    {% elseif mimeType starts with 'text/' %}
+        <i data-lucide="file-text" class="{{ class }} text-blue-400"></i>
+    {% else %}
+        <i data-lucide="file" class="{{ class }} text-gray-400"></i>
+    {% endif %}
+{% endmacro %}

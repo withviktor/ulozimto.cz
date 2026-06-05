@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}ulozimto.cz{% endblock %}</title>
+    {% block javascripts %}{% endblock %}
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
+
+<nav class="bg-white border-b border-gray-200 shadow-sm">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+        <a href="{{ path('upload_index') }}" class="text-xl font-bold text-indigo-600 tracking-tight">
+            ulozimto<span class="text-gray-400">.cz</span>
+        </a>
+        <div class="flex items-center gap-4 text-sm">
+            {% if app.user %}
+                <a href="{{ path('dashboard') }}" class="text-gray-600 hover:text-indigo-600">Moje soubory</a>
+                <a href="{{ path('auth_logout') }}" class="text-gray-400 hover:text-red-500">Odhlásit</a>
+            {% else %}
+                <a href="{{ path('auth_login') }}" class="text-gray-600 hover:text-indigo-600">Přihlásit</a>
+                <a href="{{ path('auth_register') }}"
+                   class="bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 transition">
+                    Registrace
+                </a>
+            {% endif %}
+        </div>
+    </div>
+</nav>
+
+<main class="flex-1 max-w-5xl mx-auto w-full px-4 py-10">
+    {% for type, messages in app.flashes %}
+        {% for message in messages %}
+            <div class="mb-4 p-3 rounded-lg text-sm
+                    {% if type == 'success' %}bg-green-100 text-green-800
+                    {% elseif type == 'error' %}bg-red-100 text-red-800
+                    {% else %}bg-blue-100 text-blue-800{% endif %}">
+                {{ message }}
+            </div>
+        {% endfor %}
+    {% endfor %}
+
+    {% block body %}{% endblock %}
+</main>
+
+<footer class="text-center text-xs text-gray-400 py-4 border-t border-gray-100">
+    ulozimto.cz — Sdílení souborů zdarma
+</footer>
+
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => lucide.createIcons());
+</script>
+{% block page_scripts %}{% endblock %}
+
+</body>
+</html>

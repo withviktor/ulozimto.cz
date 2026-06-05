@@ -1,0 +1,72 @@
+{% extends 'base.html.twig' %}
+{% import 'macros.html.twig' as macros %}
+{% block title %}{{ file.originalName }} — ulozimto.cz{% endblock %}
+
+{% block body %}
+<div class="max-w-2xl mx-auto">
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+
+        {# ── Preview: obrázek ── #}
+        {% if previewUrl and file.mimeType starts with 'image/' %}
+            <div class="bg-gray-100 flex items-center justify-center p-4 max-h-96 overflow-hidden">
+                <img src="{{ previewUrl }}"
+                     alt="{{ file.originalName }}"
+                     class="max-h-80 max-w-full rounded-lg object-contain shadow-sm">
+            </div>
+
+        {# ── Preview: video ── #}
+        {% elseif previewUrl and file.mimeType starts with 'video/' %}
+            <div class="bg-black">
+                <video src="{{ previewUrl }}"
+                       controls
+                       preload="metadata"
+                       class="w-full max-h-96 object-contain">
+                    Váš prohlížeč nepodporuje přehrávání videa.
+                </video>
+            </div>
+
+        {# ── Ostatní soubory: velká ikona ── #}
+        {% else %}
+            <div class="flex items-center justify-center py-12 bg-gray-50">
+                {{ macros.fileIcon(file.mimeType, 'w-20 h-20') }}
+            </div>
+        {% endif %}
+
+        {# ── Info a tlačítko stažení ── #}
+        <div class="p-6">
+            <div class="flex items-start gap-3 mb-4">
+                <div class="flex-shrink-0 mt-0.5">
+                    {{ macros.fileIcon(file.mimeType, 'w-5 h-5') }}
+                </div>
+                <div class="min-w-0">
+                    <h1 class="text-lg font-semibold break-all leading-snug">{{ file.originalName }}</h1>
+                    <div class="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-400 mt-1">
+                        <span>{{ file.formattedSize }}</span>
+                        <span>staženo {{ file.downloadCount }}×</span>
+                        <span class="{{ file.expired ? 'text-red-400' : '' }}">
+                            {{ expiration.getRemainingLabel(file.expiresAt) }}
+                        </span>
+                    </div>
+                </div>
+                {% if file.passwordProtected %}
+                    <span class="ml-auto flex-shrink-0">
+                        <i data-lucide="lock" class="w-4 h-4 text-gray-400"></i>
+                    </span>
+                {% endif %}
+            </div>
+
+            <a href="{{ path('share_download', { token: file.shareToken }) }}"
+               class="flex items-center justify-center gap-2 w-full bg-indigo-600 text-white
+                      font-medium py-3 px-6 rounded-xl hover:bg-indigo-700 active:scale-[.98] transition">
+                <i data-lucide="download" class="w-5 h-5"></i>
+                Stáhnout soubor
+            </a>
+
+            <p class="text-xs text-gray-300 text-center mt-3">
+                Platnost do {{ file.expiresAt|date('j. n. Y') }}
+            </p>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

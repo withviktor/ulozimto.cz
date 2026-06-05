@@ -1,0 +1,46 @@
+{% extends 'base.html.twig' %}
+{% block title %}Přihlášení — ulozimto.cz{% endblock %}
+
+{% block body %}
+    <div class="max-w-sm mx-auto">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+            <h1 class="text-xl font-bold text-center mb-6">Přihlásit se</h1>
+
+            {% if error %}
+                <div class="bg-red-50 text-red-700 text-sm rounded-lg p-3 mb-4">{{ error.messageKey|trans(error.messageData, 'security') }}</div>
+            {% endif %}
+
+            <form method="POST" action="{{ path('auth_login') }}">
+                <input type="hidden" name="_csrf_token" value="{{ csrf_token('authenticate') }}">
+
+                <div class="mb-4">
+                    <label class="block text-xs text-gray-500 mb-1">E-mail</label>
+                    <input type="email" name="email" value="{{ last_username }}" autofocus required
+                           class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-xs text-gray-500 mb-1">Heslo</label>
+                    <input type="password" name="password" required
+                           class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                </div>
+
+                <div class="flex items-center justify-between mb-6">
+                    <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+                        <input type="checkbox" name="_remember_me" class="rounded">
+                        Zapamatovat
+                    </label>
+                </div>
+
+                <button type="submit"
+                        class="w-full bg-indigo-600 text-white font-medium py-3 rounded-xl hover:bg-indigo-700 transition">
+                    Přihlásit
+                </button>
+            </form>
+
+            <p class="text-center text-sm text-gray-400 mt-6">
+                Nemáš účet?
+                <a href="{{ path('auth_register') }}" class="text-indigo-600 hover:underline">Registruj se</a>
+            </p>
+        </div>
+    </div>
+{% endblock %}

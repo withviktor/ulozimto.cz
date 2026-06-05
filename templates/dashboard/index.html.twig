@@ -1,0 +1,87 @@
+{% extends 'base.html.twig' %}
+{% import 'macros.html.twig' as macros %}
+{% block title %}Moje soubory — ulozimto.cz{% endblock %}
+
+{% block body %}
+<div x-data="dashboard()">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-2xl font-bold">Moje soubory</h1>
+        <a href="{{ path('upload_index') }}"
+           class="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700 transition">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            Nahrát nový
+        </a>
+    </div>
+
+    {% if files is empty %}
+        <div class="text-center py-20 text-gray-400">
+            <i data-lucide="inbox" class="w-14 h-14 mx-auto mb-4 text-gray-300"></i>
+            <p class="font-medium">Zatím jsi nenahrál žádné soubory.</p>
+            <a href="{{ path('upload_index') }}" class="text-indigo-500 text-sm mt-2 inline-block hover:underline">
+                Nahrát první soubor
+            </a>
+        </div>
+    {% else %}
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <table class="w-full text-sm">
+                <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
+                    <tr>
+                        <th class="px-4 py-3 text-left">Soubor</th>
+                        <th class="px-4 py-3 text-right">Velikost</th>
+                        <th class="px-4 py-3 text-center">Stažení</th>
+                        <th class="px-4 py-3 text-center">Platnost</th>
+                        <th class="px-4 py-3"></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                {% for file in files %}
+                    <tr class="hover:bg-gray-50" x-show="!deleted.includes('{{ file.shareToken }}')">
+                        <td class="px-4 py-3">
+                            <div class="flex items-center gap-2.5">
+                                {{ macros.fileIcon(file.mimeType, 'w-5 h-5 flex-shrink-0') }}
+                                <a href="{{ path('share_show', { token: file.shareToken }) }}"
+                                   class="truncate max-w-xs hover:text-indigo-600 font-medium"
+                                   target="_blank">
+                                    {{ file.originalName }}
+                                </a>
+                                {% if file.passwordProtected %}
+                                    <i data-lucide="lock" class="w-3.5 h-3.5 text-gray-400 flex-shrink-0"></i>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="px-4 py-3 text-right text-gray-500">{{ file.formattedSize }}</td>
+                        <td class="px-4 py-3 text-center text-gray-500">{{ file.downloadCount }}×</td>
+                        <td class="px-4 py-3 text-center">
+                            <span class="text-xs {% if file.expired %}text-red-500{% else %}text-gray-400{% endif %}">
+                                {{ expiration.getRemainingLabel(file.expiresAt) }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-right">
+                            <button @click="deleteFile('{{ file.shareToken }}')"
+                                    class="inline-flex items-center gap-1 text-xs text-gray-400 hover:text-red-500 transition">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                            </button>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+function dashboard() {
+    return {
+        deleted: [],
+        async deleteFile(token) {
+            if (!confirm('Opravdu smazat soubor?')) return;
+            const res = await fetch(`/dashboard/delete/${token}`, { method: 'POST' });
+            if (res.ok) this.deleted.push(token);
+        }
+    };
+}
+</script>
+{% endblock %}
