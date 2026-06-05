@@ -3,7 +3,6 @@ framework:
         failure_transport: failed
 
         transports:
-            # https://symfony.com/doc/current/messenger.html#transport-configuration
             async:
                 dsn: '%env(REDIS_URL)%'
                 options:
@@ -14,20 +13,30 @@ framework:
                     delay: 1000
                     multiplier: 2
 
+            scan_priority:
+                dsn: '%env(REDIS_URL)%'
+                options:
+                    stream: scan_priority
+                    group: symfony
+                retry_strategy:
+                    max_retries: 2
+                    delay: 2000
+
+            scan_default:
+                dsn: '%env(REDIS_URL)%'
+                options:
+                    stream: scan_default
+                    group: symfony
+                retry_strategy:
+                    max_retries: 2
+                    delay: 5000
+
             failed:
                 dsn: '%env(REDIS_URL)%'
                 options:
                     stream: messages_failed
                     group: symfony
-            # sync: 'sync://'
-
-        default_bus: messenger.bus.default
-
-        buses:
-            messenger.bus.default: []
 
         routing:
             App\Message\PurgeExpiredFilesMessage: async
-
-            # Route your messages to the transports
-            # 'App\Message\YourMessage': async
+            # ScanFileMessage se routuje dynamicky přes TransportNamesStamp (PLUS → scan_priority, free → scan_default)

@@ -9,10 +9,19 @@ document.addEventListener('alpine:init', () => {
         progress: 0,
         statusText: '',
         shareUrl: '',
+        shareToken: '',
         copied: false,
-        expireDays: 30,
+        expireHours: 720,
         password: '',
+        customAlias: '',
         isFolder: false,
+        sizeError: '',
+
+        // Stav skenování po uploadu
+        scanStatus: 'pending',   // pending | clean | infected | error
+        scanElapsed: 0,
+        _scanTimer: null,
+        _scanInterval: null,
 
         get totalSize() {
             return this.files.reduce((sum, f) => sum + f.size, 0);
@@ -21,6 +30,7 @@ document.addEventListener('alpine:init', () => {
         onFileSelect(event) {
             this.files = Array.from(event.target.files);
             this.isFolder = false;
+            this.validateSize();
         },
 
         onDrop(event) {
@@ -42,7 +52,18 @@ document.addEventListener('alpine:init', () => {
             Promise.all(filePromises).then(results => {
                 const flat = results.flat();
                 this.files = flat.map(r => Object.assign(r.file, { relativePath: r.path }));
+                this.validateSize();
             });
+        },
+
+        validateSize() {
+            const limit = typeof FILE_SIZE_LIMIT !== 'undefined' ? FILE_SIZE_LIMIT : Infinity;
+            const oversized = this.files.filter(f => f.size > limit);
+            if (oversized.length > 0) {
+                this.sizeError = `Soubor "${oversized[0].name}" (${this.formatBytes(oversized[0].size)}) překračuje povolený limit ${this.formatBytes(limit)}.`;
+            } else {
+                this.sizeError = '';
+            }
         },
 
         _readDirectory(dirEntry, basePath = '') {
@@ -71,8 +92,15 @@ document.addEventListener('alpine:init', () => {
             this.progress = 0;
             this.statusText = '';
             this.shareUrl = '';
+            this.shareToken = '';
             this.copied = false;
             this.isFolder = false;
+            this.sizeError = '';
+            this.customAlias = '';
+            this.scanStatus = 'pending';
+            this.scanElapsed = 0;
+            clearInterval(this._scanTimer);
+            clearInterval(this._scanInterval);
         },
 
         getMimeIcon(mime = '') {
@@ -87,13 +115,40 @@ document.addEventListener('alpine:init', () => {
         },
 
         async startUpload() {
-            if (!this.files.length) return;
+            if (!this.files.length || this.sizeError) return;
             if (this.isFolder || this.files.length > 1) {
                 await this._uploadFolder();
             } else {
                 await this._uploadSingleFile(this.files[0]);
             }
         },
+
+        // ── Po dokončení uploadu: spustit polling skenování ──────────
+
+        _startScanPolling(token) {
+            this.scanStatus = 'pending';
+            this.scanElapsed = 0;
+
+            // Sekundoměr
+            this._scanTimer = setInterval(() => this.scanElapsed++, 1000);
+
+            // Polling každé 2s
+            this._scanInterval = setInterval(async () => {
+                try {
+                    const res = await fetch(`/s/${token}/status`);
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    if (data.status !== 'pending') {
+                        this.scanStatus = data.status;
+                        clearInterval(this._scanTimer);
+                        clearInterval(this._scanInterval);
+                        this.$nextTick(() => lucide.createIcons());
+                    }
+                } catch (_) { /* síťová chyba, zkusit znovu */ }
+            }, 2000);
+        },
+
+        // ── Single file chunked upload ────────────────────────────────
 
         async _uploadSingleFile(file) {
             this.uploading = true;
@@ -106,11 +161,19 @@ document.addEventListener('alpine:init', () => {
             const initRes = await fetch('/upload/init', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ filename: file.name, mimeType: mime }),
+                body: JSON.stringify({ filename: file.name, mimeType: mime, size: file.size }),
             });
-            const { uploadId, minioKey } = await initRes.json();
 
+            if (!initRes.ok) {
+                const err = await initRes.json();
+                this.sizeError = err.error ?? 'Chyba při inicializaci uploadu.';
+                this.uploading = false;
+                return;
+            }
+
+            const { uploadId, minioKey } = await initRes.json();
             const parts = [];
+
             for (let i = 0; i < totalChunks; i++) {
                 const start = i * CHUNK_SIZE;
                 const end   = Math.min(start + CHUNK_SIZE, file.size);
@@ -139,20 +202,33 @@ document.addEventListener('alpine:init', () => {
                     uploadId,
                     minioKey,
                     parts,
-                    filename:   file.name,
-                    mimeType:   mime,
-                    size:       file.size,
-                    expireDays: parseInt(this.expireDays),
-                    password:   this.password || null,
+                    filename:    file.name,
+                    mimeType:    mime,
+                    size:        file.size,
+                    expireHours: parseInt(this.expireHours),
+                    password:    this.password || null,
+                    customAlias: this.customAlias || null,
                 }),
             });
 
-            const { shareUrl } = await completeRes.json();
-            this.shareUrl  = window.location.origin + shareUrl;
-            this.progress  = 100;
-            this.uploading = false;
-            this.done      = true;
+            if (!completeRes.ok) {
+                const err = await completeRes.json();
+                this.sizeError = err.error ?? 'Chyba při dokončení uploadu.';
+                this.uploading = false;
+                return;
+            }
+
+            const { shareUrl, token } = await completeRes.json();
+            this.shareUrl   = window.location.origin + shareUrl;
+            this.shareToken = token;
+            this.progress   = 100;
+            this.uploading  = false;
+            this.done       = true;
+
+            this._startScanPolling(token);
         },
+
+        // ── Folder upload ─────────────────────────────────────────────
 
         async _uploadFolder() {
             this.uploading = true;
@@ -165,18 +241,29 @@ document.addEventListener('alpine:init', () => {
                 form.append('files[]', f, f.name);
                 form.append('names[]', f.relativePath || f.name);
             }
-            form.append('archiveName', 'archiv.zip');
-            form.append('expireDays',  String(this.expireDays));
-            if (this.password) form.append('password', this.password);
+            form.append('archiveName',  'archiv.zip');
+            form.append('expireHours',  String(this.expireHours));
+            if (this.password)    form.append('password',    this.password);
+            if (this.customAlias) form.append('customAlias', this.customAlias);
 
             this.progress = 50;
             const res = await fetch('/upload/folder', { method: 'POST', body: form });
-            const { shareUrl } = await res.json();
 
-            this.shareUrl  = window.location.origin + shareUrl;
-            this.progress  = 100;
-            this.uploading = false;
-            this.done      = true;
+            if (!res.ok) {
+                const err = await res.json();
+                this.sizeError = err.error ?? 'Chyba při nahrávání složky.';
+                this.uploading = false;
+                return;
+            }
+
+            const { shareUrl, token } = await res.json();
+            this.shareUrl   = window.location.origin + shareUrl;
+            this.shareToken = token;
+            this.progress   = 100;
+            this.uploading  = false;
+            this.done       = true;
+
+            this._startScanPolling(token);
         },
 
         async copyLink() {

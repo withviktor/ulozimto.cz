@@ -2,11 +2,38 @@
 {% block title %}Nahrát soubor — ulozimto.cz{% endblock %}
 
 {% block body %}
-<div class="max-w-2xl mx-auto" x-data="uploader"
+<div class="max-w-2xl mx-auto"
+     x-data="uploader"
      x-init="$watch('files', () => $nextTick(() => lucide.createIcons()))">
 
     <h1 class="text-3xl font-bold text-center mb-2">Nahraj a sdílej soubory</h1>
-    <p class="text-center text-gray-500 mb-8 text-sm">Fotky, videa, ZIPy, celé složky — zdarma, bez registrace</p>
+    <p class="text-center text-gray-500 mb-6 text-sm">Fotky, videa, ZIPy, celé složky — zdarma, bez registrace</p>
+
+    {# ── Limity dle plánu ── #}
+    <div class="flex justify-center gap-6 mb-8 text-xs text-gray-400">
+        <span class="flex items-center gap-1">
+            <i data-lucide="hard-drive" class="w-3.5 h-3.5"></i>
+            Max. soubor: <strong class="text-gray-600 ml-1">{{ (fileSizeLimit / 1073741824)|round(0) }} GB</strong>
+        </span>
+        {% if storageLimit is not null %}
+        <span class="flex items-center gap-1">
+            <i data-lucide="database" class="w-3.5 h-3.5"></i>
+            Úložiště:
+            <strong class="ml-1
+                {% if storageUsed / storageLimit > 0.9 %}text-red-500
+                {% elseif storageUsed / storageLimit > 0.7 %}text-amber-500
+                {% else %}text-gray-600{% endif %}">
+                {{ (storageUsed / 1073741824)|round(1) }} / {{ (storageLimit / 1073741824)|round(0) }} GB
+            </strong>
+        </span>
+        {% endif %}
+        {% if isPlus %}
+        <span class="flex items-center gap-1 text-indigo-500 font-medium">
+            <i data-lucide="zap" class="w-3.5 h-3.5"></i>
+            PLUS
+        </span>
+        {% endif %}
+    </div>
 
     {# ── Dropzone ── #}
     <div
@@ -38,6 +65,13 @@
             </button>
         </div>
 
+        {# Chyba velikosti #}
+        <div x-show="sizeError" x-cloak
+             class="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg p-3 mb-4 text-sm text-red-700">
+            <i data-lucide="alert-circle" class="w-4 h-4 mt-0.5 flex-shrink-0"></i>
+            <span x-text="sizeError"></span>
+        </div>
+
         {# Seznam souborů #}
         <ul class="text-sm text-gray-600 divide-y divide-gray-100 max-h-48 overflow-y-auto mb-5 -mx-1 px-1">
             <template x-for="f in files" :key="f.name">
@@ -50,14 +84,14 @@
         </ul>
 
         {# Nastavení #}
-        <div class="grid grid-cols-2 gap-4 mb-5">
+        <div class="grid grid-cols-2 gap-4 mb-4">
             <div>
                 <label class="block text-xs text-gray-500 mb-1">Platnost</label>
-                <select x-model="expireDays"
+                <select x-model="expireHours"
                         class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                    {% for days in allowedDays %}
-                        <option value="{{ days }}" {% if days == defaultDays %}selected{% endif %}>
-                            {{ days }} dní
+                    {% for hours, label in expirationOptions %}
+                        <option value="{{ hours }}" {% if hours == defaultHours %}selected{% endif %}>
+                            {{ label }}
                         </option>
                     {% endfor %}
                 </select>
@@ -68,6 +102,22 @@
                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
             </div>
         </div>
+
+        {# Vlastní alias — jen PLUS ── #}
+        {% if isPlus %}
+        <div class="mb-4">
+            <label class="block text-xs text-gray-500 mb-1 flex items-center gap-1">
+                <i data-lucide="zap" class="w-3 h-3 text-indigo-500"></i>
+                Vlastní alias (volitelně)
+            </label>
+            <div class="flex items-center border border-gray-200 rounded-lg overflow-hidden focus-within:ring-2 focus-within:ring-indigo-400">
+                <span class="px-3 py-2 text-xs text-gray-400 bg-gray-50 border-r border-gray-200">ulozimto.cz/s/</span>
+                <input type="text" x-model="customAlias" placeholder="moje-foto"
+                       pattern="[a-zA-Z0-9\-_]+" maxlength="80"
+                       class="flex-1 px-3 py-2 text-sm focus:outline-none">
+            </div>
+        </div>
+        {% endif %}
 
         {# Progress #}
         <div x-show="uploading" class="mb-4">
@@ -83,7 +133,7 @@
 
         <button
             @click="startUpload()"
-            :disabled="uploading"
+            :disabled="uploading || !!sizeError"
             class="w-full inline-flex items-center justify-center gap-2 bg-indigo-600 text-white
                    font-medium py-3 rounded-xl hover:bg-indigo-700 disabled:opacity-50 transition active:scale-[.98]">
             <i data-lucide="upload-cloud" class="w-5 h-5"></i>
@@ -94,21 +144,75 @@
 
     {# ── Výsledek ── #}
     <div x-show="done" x-cloak
-         class="bg-white rounded-2xl shadow-sm border border-green-200 p-8 mt-4 text-center">
-        <i data-lucide="check-circle-2" class="w-12 h-12 mx-auto mb-4 text-green-500"></i>
-        <h2 class="text-lg font-bold mb-1">Soubor nahrán!</h2>
-        <p class="text-sm text-gray-500 mb-5">Zkopíruj odkaz a sdílej ho:</p>
-        <div class="flex gap-2">
+         class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mt-4">
+
+        {# Scan status banner #}
+        <div class="mb-5 rounded-xl px-4 py-3 flex items-center gap-3 text-sm transition-all"
+             :class="{
+                 'bg-amber-50 border border-amber-200 text-amber-700': scanStatus === 'pending',
+                 'bg-green-50 border border-green-200 text-green-700': scanStatus === 'clean',
+                 'bg-red-50 border border-red-200 text-red-700':      scanStatus === 'infected',
+                 'bg-gray-50 border border-gray-200 text-gray-500':   scanStatus === 'error',
+             }">
+
+            {# Pending — pulzující štít + sekundoměr #}
+            <span x-show="scanStatus === 'pending'" class="flex items-center gap-3 w-full">
+                <span class="relative flex-shrink-0">
+                    <i data-lucide="shield" class="w-5 h-5"></i>
+                    <span class="absolute inset-0 animate-ping rounded-full bg-amber-400 opacity-30"></span>
+                </span>
+                <span>
+                    Skenování na viry probíhá…
+                    <span class="font-mono font-medium" x-text="scanElapsed + 's'"></span>
+                </span>
+                <span class="ml-auto flex gap-0.5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-bounce" style="animation-delay:0ms"></span>
+                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-bounce" style="animation-delay:150ms"></span>
+                    <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-bounce" style="animation-delay:300ms"></span>
+                </span>
+            </span>
+
+            {# Clean #}
+            <span x-show="scanStatus === 'clean'" x-cloak class="flex items-center gap-2">
+                <i data-lucide="shield-check" class="w-5 h-5 flex-shrink-0"></i>
+                Soubor je bezpečný — stažení je dostupné.
+            </span>
+
+            {# Infected #}
+            <span x-show="scanStatus === 'infected'" x-cloak class="flex items-center gap-2">
+                <i data-lucide="shield-x" class="w-5 h-5 flex-shrink-0"></i>
+                Hrozba detekována — soubor byl zablokován.
+            </span>
+
+            {# Error #}
+            <span x-show="scanStatus === 'error'" x-cloak class="flex items-center gap-2">
+                <i data-lucide="shield-alert" class="w-5 h-5 flex-shrink-0"></i>
+                Sken selhal — soubor byl zpřístupněn.
+            </span>
+        </div>
+
+        {# Share odkaz #}
+        <p class="text-sm font-medium text-gray-700 mb-2">Odkaz ke sdílení:</p>
+        <div class="flex gap-2 mb-4">
             <input type="text" :value="shareUrl" readonly
                    class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 select-all">
             <button @click="copyLink()"
-                    class="inline-flex items-center gap-1.5 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700 transition">
+                    class="inline-flex items-center gap-1.5 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700 transition flex-shrink-0">
                 <i data-lucide="copy" class="w-4 h-4"></i>
                 <span x-text="copied ? 'Zkopírováno!' : 'Kopírovat'"></span>
             </button>
         </div>
-        <button @click="reset()"
-                class="mt-4 text-sm text-gray-400 hover:text-gray-600 transition">
+
+        {# Přejít na stránku souboru #}
+        <a :href="shareUrl"
+           target="_blank"
+           class="flex items-center justify-center gap-2 w-full border border-gray-200 text-gray-600
+                  text-sm py-2.5 rounded-xl hover:bg-gray-50 transition mb-3">
+            <i data-lucide="external-link" class="w-4 h-4"></i>
+            Otevřít stránku souboru
+        </a>
+
+        <button @click="reset()" class="w-full text-sm text-gray-400 hover:text-gray-600 transition py-1">
             Nahrát další soubor
         </button>
     </div>
@@ -117,5 +221,8 @@
 {% endblock %}
 
 {% block page_scripts %}
+<script>
+    const FILE_SIZE_LIMIT = {{ fileSizeLimit }};
+</script>
 <script src="{{ asset('js/upload.js') }}"></script>
 {% endblock %}

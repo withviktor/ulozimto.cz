@@ -30,3 +30,19 @@ services:
             $region:     '%env(MINIO_REGION)%'
             $bucket:     '%env(MINIO_BUCKET)%'
             $publicUrl:  '%env(MINIO_PUBLIC_URL)%'
+
+    App\Service\ClamAvService:
+        arguments:
+            $host:    '%env(CLAMAV_HOST)%'
+            $port:    '%env(int:CLAMAV_PORT)%'
+            $timeout: 60
+
+    App\Controller\ProfileController:
+        arguments:
+            $mailerFrom:     '%env(MAILER_FROM)%'
+            $mailerFromName: '%env(MAILER_FROM_NAME)%'
+
+    App\Controller\NotifyController:
+        arguments:
+            $resendApiKey:     '%env(RESEND_API_KEY)%'
+            $resendAudienceId: '%env(RESEND_AUDIENCE_ID)%'

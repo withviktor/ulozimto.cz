@@ -2,11 +2,13 @@
 
 namespace App\Controller;
 
+use App\Entity\File;
 use App\Repository\FileRepository;
 use App\Service\FileExpirationService;
 use App\Service\MinioService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -21,17 +23,17 @@ class ShareController extends AbstractController
         private readonly EntityManagerInterface $em,
     ) {}
 
-    /** Info stránka sdíleného souboru — zobrazí název, velikost, expiraci a tlačítko ke stažení */
+    /** Info stránka sdíleného souboru — podporuje token i vlastní alias */
     #[Route('/s/{token}', name: 'share_show', methods: ['GET', 'POST'])]
     public function show(string $token, Request $request): Response
     {
-        $file = $this->files->findByShareToken($token);
+        $file = $this->files->findByTokenOrAlias($token);
 
         if (!$file || $file->isExpired()) {
             throw $this->createNotFoundException('Soubor neexistuje nebo vypršela jeho platnost.');
         }
 
-        // Soubor chráněný heslem — ověř heslo před zobrazením stránky
+        // Soubor chráněný heslem
         if ($file->isPasswordProtected()) {
             $submittedPassword = $request->request->get('password');
 
@@ -42,15 +44,21 @@ class ShareController extends AbstractController
                 ]);
             }
 
-            // Heslo správné → uložit do session, aby uživatel nemusel zadávat znovu při stahování
-            $request->getSession()->set('unlocked_' . $token, true);
+            $request->getSession()->set('unlocked_' . $file->getShareToken(), true);
         }
 
-        // Preview URL pro obrázky a videa — jde přes Symfony proxy (žádné CORS)
+        // Soubor infikován virem
+        if ($file->isInfected()) {
+            return $this->render('share/infected.html.twig', ['file' => $file]);
+        }
+
+        // Preview URL (jen pro čisté soubory — pending zobrazíme jako waiting)
         $previewUrl = null;
-        $mime = $file->getMimeType() ?? '';
-        if (str_starts_with($mime, 'image/') || str_starts_with($mime, 'video/')) {
-            $previewUrl = $this->generateUrl('share_preview', ['token' => $file->getShareToken()]);
+        if ($file->isClean()) {
+            $mime = $file->getMimeType() ?? '';
+            if (str_starts_with($mime, 'image/') || str_starts_with($mime, 'video/')) {
+                $previewUrl = $this->generateUrl('share_preview', ['token' => $file->getShareToken()]);
+            }
         }
 
         return $this->render('share/show.html.twig', [
@@ -60,16 +68,32 @@ class ShareController extends AbstractController
         ]);
     }
 
-    /**
-     * Proxy preview — streamuje obrázek/video přes Symfony.
-     * Žádné CORS problémy protože request jde na stejný origin jako stránka.
-     */
+    /** Stav skenování — pro polling z Alpine.js */
+    #[Route('/s/{token}/status', name: 'share_status', methods: ['GET'])]
+    public function status(string $token): JsonResponse
+    {
+        $file = $this->files->findByTokenOrAlias($token);
+
+        if (!$file || $file->isExpired()) {
+            return $this->json(['status' => 'not_found'], 404);
+        }
+
+        return $this->json([
+            'status'     => $file->getScanStatus(),
+            'previewUrl' => ($file->isClean() && (
+                str_starts_with($file->getMimeType() ?? '', 'image/') ||
+                str_starts_with($file->getMimeType() ?? '', 'video/')
+            )) ? $this->generateUrl('share_preview', ['token' => $file->getShareToken()]) : null,
+        ]);
+    }
+
+    /** Proxy preview — streamuje obrázek/video přes Symfony (žádné CORS) */
     #[Route('/s/{token}/preview', name: 'share_preview', methods: ['GET'])]
     public function preview(string $token, Request $request): Response
     {
         $file = $this->files->findByShareToken($token);
 
-        if (!$file || $file->isExpired()) {
+        if (!$file || $file->isExpired() || !$file->isClean()) {
             throw $this->createNotFoundException();
         }
 
@@ -96,20 +120,27 @@ class ShareController extends AbstractController
         return $response;
     }
 
-    /** Samotné stažení — přesměruje na presigned MinIO URL */
+    /** Samotné stažení */
     #[Route('/s/{token}/download', name: 'share_download', methods: ['GET'])]
     public function download(string $token, Request $request): Response
     {
-        $file = $this->files->findByShareToken($token);
+        $file = $this->files->findByTokenOrAlias($token);
 
         if (!$file || $file->isExpired()) {
             throw $this->createNotFoundException('Soubor neexistuje nebo vypršela jeho platnost.');
         }
 
-        // Zkontrolovat heslo ze session (bylo ověřeno na info stránce)
+        // Blokovat stažení infikovaných a ještě neskenovaných souborů
+        if ($file->isInfected()) {
+            return $this->render('share/infected.html.twig', ['file' => $file]);
+        }
+
+        if ($file->isScanPending()) {
+            return $this->redirectToRoute('share_show', ['token' => $token]);
+        }
+
         if ($file->isPasswordProtected()) {
-            $unlocked = $request->getSession()->get('unlocked_' . $token, false);
-            if (!$unlocked) {
+            if (!$request->getSession()->get('unlocked_' . $file->getShareToken(), false)) {
                 return $this->redirectToRoute('share_show', ['token' => $token]);
             }
         }
@@ -117,8 +148,6 @@ class ShareController extends AbstractController
         $file->incrementDownloadCount();
         $this->em->flush();
 
-        $url = $this->minio->getPresignedUrl($file->getMinioKey(), 3600);
-
-        return $this->redirect($url);
+        return $this->redirect($this->minio->getPresignedUrl($file->getMinioKey(), 3600));
     }
 }

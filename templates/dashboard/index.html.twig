@@ -2,15 +2,69 @@
 {% import 'macros.html.twig' as macros %}
 {% block title %}Moje soubory — ulozimto.cz{% endblock %}
 
+{# Seznam tokenů souborů ve stavu "pending" pro live polling #}
+{% set pendingTokens = [] %}
+{% for file in files %}
+    {% if file.scanStatus == 'pending' %}
+        {% set pendingTokens = pendingTokens|merge([file.shareToken]) %}
+    {% endif %}
+{% endfor %}
+
 {% block body %}
-<div x-data="dashboard()">
-    <div class="flex justify-between items-center mb-6">
+<div x-data="dashboard({{ pendingTokens|json_encode }})"
+     x-init="init()">
+
+    <div class="flex justify-between items-center mb-5">
         <h1 class="text-2xl font-bold">Moje soubory</h1>
         <a href="{{ path('upload_index') }}"
            class="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700 transition">
             <i data-lucide="plus" class="w-4 h-4"></i>
             Nahrát nový
         </a>
+    </div>
+
+    {# ── Storage panel ── #}
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-sm font-medium text-gray-700 flex items-center gap-1.5">
+                <i data-lucide="hard-drive" class="w-4 h-4 text-gray-400"></i>
+                Využití úložiště
+            </span>
+            <div class="flex items-center gap-3">
+                {% if not isPlus %}
+                <button @click="$dispatch('show-plus-modal')"
+                        class="inline-flex items-center gap-1 text-xs text-indigo-500 hover:text-indigo-700 font-medium transition">
+                    <i data-lucide="zap" class="w-3 h-3"></i>
+                    Získat PLUS
+                </button>
+                {% else %}
+                <span class="inline-flex items-center gap-1 text-xs text-indigo-500 font-medium">
+                    <i data-lucide="zap" class="w-3 h-3"></i>
+                    PLUS
+                </span>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="w-full bg-gray-100 rounded-full h-2.5 mb-2">
+            <div class="h-2.5 rounded-full transition-all duration-500
+                {% if storagePercent >= 90 %}bg-red-500
+                {% elseif storagePercent >= 70 %}bg-amber-500
+                {% else %}bg-indigo-500{% endif %}"
+                 style="width: {{ min(storagePercent, 100) }}%">
+            </div>
+        </div>
+
+        <div class="flex justify-between text-xs text-gray-400">
+            <span>
+                {{ (storageUsed / 1073741824)|round(2) }} GB použito
+                z {{ (storageLimit / 1073741824)|round(0) }} GB
+                · {{ files|length }} souborů
+            </span>
+            <span class="{% if storagePercent >= 90 %}text-red-500{% elseif storagePercent >= 70 %}text-amber-500{% endif %}">
+                {{ storagePercent }}% využito
+            </span>
+        </div>
     </div>
 
     {% if files is empty %}
@@ -27,6 +81,7 @@
                 <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
                     <tr>
                         <th class="px-4 py-3 text-left">Soubor</th>
+                        <th class="px-4 py-3 text-center">Stav</th>
                         <th class="px-4 py-3 text-right">Velikost</th>
                         <th class="px-4 py-3 text-center">Stažení</th>
                         <th class="px-4 py-3 text-center">Platnost</th>
@@ -35,7 +90,10 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                 {% for file in files %}
-                    <tr class="hover:bg-gray-50" x-show="!deleted.includes('{{ file.shareToken }}')">
+                    <tr class="hover:bg-gray-50 transition-colors"
+                        x-show="!deleted.includes('{{ file.shareToken }}')">
+
+                        {# Název souboru #}
                         <td class="px-4 py-3">
                             <div class="flex items-center gap-2.5">
                                 {{ macros.fileIcon(file.mimeType, 'w-5 h-5 flex-shrink-0') }}
@@ -49,6 +107,46 @@
                                 {% endif %}
                             </div>
                         </td>
+
+                        {# Stav skenování — live #}
+                        <td class="px-4 py-3 text-center">
+
+                            {# Pending — pulzující (live) #}
+                            <span x-show="getScanStatus('{{ file.shareToken }}', '{{ file.scanStatus }}') === 'pending'"
+                                  class="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                                <span class="relative flex-shrink-0">
+                                    <i data-lucide="shield" class="w-3 h-3"></i>
+                                    <span class="absolute inset-0 animate-ping rounded-full bg-amber-400 opacity-40"></span>
+                                </span>
+                                Skenuje se…
+                            </span>
+
+                            {# Clean #}
+                            <span x-show="getScanStatus('{{ file.shareToken }}', '{{ file.scanStatus }}') === 'clean'"
+                                  x-cloak
+                                  class="inline-flex items-center gap-1 text-xs text-green-600 bg-green-50 border border-green-200 px-2 py-0.5 rounded-full">
+                                <i data-lucide="shield-check" class="w-3 h-3"></i>
+                                Bezpečný
+                            </span>
+
+                            {# Infected #}
+                            <span x-show="getScanStatus('{{ file.shareToken }}', '{{ file.scanStatus }}') === 'infected'"
+                                  x-cloak
+                                  class="inline-flex items-center gap-1 text-xs text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full">
+                                <i data-lucide="shield-x" class="w-3 h-3"></i>
+                                Hrozba
+                            </span>
+
+                            {# Error #}
+                            <span x-show="getScanStatus('{{ file.shareToken }}', '{{ file.scanStatus }}') === 'error'"
+                                  x-cloak
+                                  class="inline-flex items-center gap-1 text-xs text-gray-400 bg-gray-50 border border-gray-200 px-2 py-0.5 rounded-full">
+                                <i data-lucide="shield-alert" class="w-3 h-3"></i>
+                                Sken selhal
+                            </span>
+
+                        </td>
+
                         <td class="px-4 py-3 text-right text-gray-500">{{ file.formattedSize }}</td>
                         <td class="px-4 py-3 text-center text-gray-500">{{ file.downloadCount }}×</td>
                         <td class="px-4 py-3 text-center">
@@ -73,14 +171,48 @@
 
 {% block page_scripts %}
 <script>
-function dashboard() {
+function dashboard(pendingTokens) {
     return {
         deleted: [],
+        scanStatuses: {},  // token → status
+
+        init() {
+            // Inicializovat pending tokeny a spustit polling pro každý
+            for (const token of pendingTokens) {
+                this.scanStatuses[token] = 'pending';
+                this._pollToken(token);
+            }
+        },
+
+        async _pollToken(token) {
+            while (this.scanStatuses[token] === 'pending') {
+                await new Promise(r => setTimeout(r, 2000));
+                try {
+                    const res = await fetch(`/s/${token}/status`);
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    this.scanStatuses[token] = data.status;
+                    if (data.status !== 'pending') {
+                        // Status se změnil — aktualizovat Lucide ikony v řádku
+                        this.$nextTick(() => lucide.createIcons());
+                    }
+                } catch (_) { /* síťová chyba, opakovat */ }
+            }
+        },
+
+        getScanStatus(token, fallback) {
+            return this.scanStatuses[token] ?? fallback;
+        },
+
         async deleteFile(token) {
             if (!confirm('Opravdu smazat soubor?')) return;
             const res = await fetch(`/dashboard/delete/${token}`, { method: 'POST' });
-            if (res.ok) this.deleted.push(token);
-        }
+            if (res.ok) {
+                this.deleted.push(token);
+                // Zastavit polling pokud soubor byl smazán
+                this.scanStatuses[token] = 'deleted';
+            }
+        },
     };
 }
 </script>

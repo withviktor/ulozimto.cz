@@ -1,0 +1,172 @@
+{% extends 'base.html.twig' %}
+{% block title %}Profil — ulozimto.cz{% endblock %}
+
+{% block body %}
+<div class="max-w-2xl mx-auto space-y-6">
+
+    {# ── Hlavička profilu ── #}
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center gap-5">
+            <div class="relative flex-shrink-0">
+                <img src="{{ avatarUrl }}"
+                     alt="Avatar"
+                     class="w-20 h-20 rounded-full object-cover border-2 border-gray-100 shadow-sm">
+                {% if user.plus %}
+                    <span class="absolute -bottom-1 -right-1 bg-indigo-600 text-white text-xs px-1.5 py-0.5 rounded-full font-medium leading-none">
+                        PLUS
+                    </span>
+                {% endif %}
+            </div>
+            <div>
+                <h1 class="text-xl font-bold">{{ user.displayName }}</h1>
+                <p class="text-sm text-gray-400 mt-0.5">{{ user.email }}</p>
+                <p class="text-xs text-gray-400 mt-1">
+                    Člen od {{ user.createdAt|date('j. n. Y') }}
+                </p>
+            </div>
+        </div>
+
+        {# Storage bar #}
+        <div class="mt-5 pt-5 border-t border-gray-100">
+            {% set pct = storagePercent %}
+            <div class="flex justify-between text-xs text-gray-500 mb-1.5">
+                <span class="flex items-center gap-1">
+                    <i data-lucide="hard-drive" class="w-3.5 h-3.5"></i>
+                    Úložiště
+                </span>
+                <span>
+                    {{ (storageUsed / 1073741824)|round(2) }} GB
+                    / {{ (storageLimit / 1073741824)|round(0) }} GB
+                    · {{ fileCount }} souborů
+                </span>
+            </div>
+            <div class="w-full bg-gray-100 rounded-full h-2">
+                <div class="h-2 rounded-full transition-all"
+                     style="width: {{ min(pct, 100) }}%; background-color: {% if pct >= 90 %}#ef4444{% elseif pct >= 70 %}#f59e0b{% else %}#6366f1{% endif %}">
+                </div>
+            </div>
+            {% if not user.plus %}
+            <p class="text-xs text-gray-400 mt-2">
+                Chceš více prostoru?
+                <button x-data
+                        @click="$dispatch('show-plus-modal')"
+                        class="text-indigo-500 hover:underline font-medium">
+                    Přejdi na PLUS
+                </button>
+            </p>
+            {% endif %}
+        </div>
+    </div>
+
+    {# ── Zobrazované jméno ── #}
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+            <i data-lucide="user" class="w-4 h-4 text-gray-400"></i>
+            Zobrazované jméno
+        </h2>
+        <form method="POST" action="{{ path('profile_name') }}" class="flex gap-3">
+            <input type="text"
+                   name="name"
+                   value="{{ user.name ?? '' }}"
+                   placeholder="Tvoje jméno (nepovinné)"
+                   maxlength="100"
+                   class="flex-1 border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            <button type="submit"
+                    class="bg-indigo-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
+                Uložit
+            </button>
+        </form>
+    </div>
+
+    {# ── Profilový obrázek ── #}
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+            <i data-lucide="image" class="w-4 h-4 text-gray-400"></i>
+            Profilový obrázek
+        </h2>
+        <div class="flex items-center gap-4">
+            <img src="{{ avatarUrl }}"
+                 alt="Avatar"
+                 class="w-14 h-14 rounded-full object-cover border border-gray-200">
+            <div class="flex-1">
+                <form method="POST" action="{{ path('profile_avatar_upload') }}"
+                      enctype="multipart/form-data" class="flex gap-2">
+                    <label class="flex-1 cursor-pointer">
+                        <input type="file" name="avatar" accept="image/*" class="hidden"
+                               onchange="this.form.submit()">
+                        <span class="flex items-center justify-center gap-2 w-full border border-gray-200
+                                     rounded-lg px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 transition cursor-pointer">
+                            <i data-lucide="upload" class="w-4 h-4"></i>
+                            Nahrát obrázek
+                        </span>
+                    </label>
+                </form>
+                <p class="text-xs text-gray-400 mt-1.5">JPG, PNG, GIF, WebP · max 2 MB</p>
+            </div>
+            {% if user.hasCustomAvatar %}
+            <form method="POST" action="{{ path('profile_avatar_delete') }}">
+                <button type="submit"
+                        class="text-xs text-gray-400 hover:text-red-500 transition flex items-center gap-1">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                    Odstranit
+                </button>
+            </form>
+            {% endif %}
+        </div>
+        {% if not user.hasCustomAvatar %}
+        <p class="text-xs text-gray-400 mt-3 flex items-center gap-1">
+            <i data-lucide="info" class="w-3 h-3"></i>
+            Aktuálně se používá Gravatar dle e-mailu.
+        </p>
+        {% endif %}
+    </div>
+
+    {# ── Změna emailu ── #}
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-sm font-semibold text-gray-700 mb-1 flex items-center gap-2">
+            <i data-lucide="mail" class="w-4 h-4 text-gray-400"></i>
+            Změna e-mailu
+        </h2>
+        <p class="text-xs text-gray-400 mb-4">Aktuální: <strong>{{ user.email }}</strong></p>
+
+        {% if user.pendingEmail %}
+        <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-700 mb-4 flex items-start gap-2">
+            <i data-lucide="clock" class="w-4 h-4 mt-0.5 flex-shrink-0"></i>
+            <span>Čeká na potvrzení: <strong>{{ user.pendingEmail }}</strong>. Zkontroluj novou e-mailovou schránku.</span>
+        </div>
+        {% endif %}
+
+        <form method="POST" action="{{ path('profile_email') }}" class="space-y-3">
+            <input type="email" name="new_email" placeholder="Nový e-mail" required
+                   class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            <input type="password" name="current_password" placeholder="Aktuální heslo" required
+                   class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            <button type="submit"
+                    class="w-full bg-indigo-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-indigo-700 transition">
+                Odeslat potvrzovací e-mail
+            </button>
+        </form>
+    </div>
+
+    {# ── Změna hesla ── #}
+    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+        <h2 class="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
+            <i data-lucide="lock" class="w-4 h-4 text-gray-400"></i>
+            Změna hesla
+        </h2>
+        <form method="POST" action="{{ path('profile_password') }}" class="space-y-3">
+            <input type="password" name="current_password" placeholder="Aktuální heslo" required
+                   class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            <input type="password" name="new_password" placeholder="Nové heslo (min. 8 znaků)" required minlength="8"
+                   class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            <input type="password" name="new_password_confirm" placeholder="Nové heslo znovu" required minlength="8"
+                   class="w-full border border-gray-200 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            <button type="submit"
+                    class="w-full bg-gray-800 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-gray-900 transition">
+                Změnit heslo
+            </button>
+        </form>
+    </div>
+
+</div>
+{% endblock %}

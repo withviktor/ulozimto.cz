@@ -26,12 +26,21 @@ class DashboardController extends AbstractController
     #[Route('', name: 'dashboard', methods: ['GET'])]
     public function index(): Response
     {
+        /** @var \App\Entity\User $user */
         $user  = $this->getUser();
         $files = $this->files->findByUser((string) $user->getId());
 
+        $storageUsed    = $this->files->getTotalStorageForUser((string) $user->getId());
+        $storageLimit   = $user->getStorageLimit();
+        $storagePercent = $storageLimit > 0 ? round(($storageUsed / $storageLimit) * 100, 1) : 0;
+
         return $this->render('dashboard/index.html.twig', [
-            'files'      => $files,
-            'expiration' => $this->expiration,
+            'files'          => $files,
+            'expiration'     => $this->expiration,
+            'storageUsed'    => $storageUsed,
+            'storageLimit'   => $storageLimit,
+            'storagePercent' => $storagePercent,
+            'isPlus'         => $user->isPlus(),
         ]);
     }
 

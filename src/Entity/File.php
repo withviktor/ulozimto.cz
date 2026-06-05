@@ -4,16 +4,23 @@ namespace App\Entity;
 
 use App\Repository\FileRepository;
 use Doctrine\ORM\Mapping as ORM;
-use Symfony\Bridge\Doctrine\Types\UuidType;
 use Symfony\Bridge\Doctrine\IdGenerator\UuidGenerator;
+use Symfony\Bridge\Doctrine\Types\UuidType;
 use Symfony\Component\Uid\Uuid;
 
 #[ORM\Entity(repositoryClass: FileRepository::class)]
 #[ORM\Table(name: 'files')]
-#[ORM\Index(columns: ['share_token'], name: 'idx_share_token')]
-#[ORM\Index(columns: ['expires_at'],  name: 'idx_expires_at')]
+#[ORM\Index(columns: ['share_token'],  name: 'idx_share_token')]
+#[ORM\Index(columns: ['custom_alias'], name: 'idx_custom_alias')]
+#[ORM\Index(columns: ['expires_at'],   name: 'idx_expires_at')]
+#[ORM\Index(columns: ['scan_status'],  name: 'idx_scan_status')]
 class File
 {
+    public const SCAN_PENDING  = 'pending';
+    public const SCAN_CLEAN    = 'clean';
+    public const SCAN_INFECTED = 'infected';
+    public const SCAN_ERROR    = 'error';
+
     #[ORM\Id]
     #[ORM\Column(type: UuidType::NAME, unique: true)]
     #[ORM\GeneratedValue(strategy: 'CUSTOM')]
@@ -23,6 +30,10 @@ class File
     /** Krátký token pro share URL, např. aB3x9Kzm */
     #[ORM\Column(length: 12, unique: true)]
     private string $shareToken;
+
+    /** Vlastní alias — pouze PLUS uživatelé */
+    #[ORM\Column(length: 80, unique: true, nullable: true)]
+    private ?string $customAlias = null;
 
     #[ORM\ManyToOne(targetEntity: User::class, inversedBy: 'files')]
     #[ORM\JoinColumn(nullable: true, onDelete: 'SET NULL')]
@@ -45,6 +56,10 @@ class File
     #[ORM\Column(nullable: true)]
     private ?string $passwordHash = null;
 
+    /** Stav antivirového skenu */
+    #[ORM\Column(length: 10)]
+    private string $scanStatus = self::SCAN_PENDING;
+
     #[ORM\Column]
     private \DateTimeImmutable $expiresAt;
 
@@ -64,6 +79,9 @@ class File
     public function getShareToken(): string { return $this->shareToken; }
     public function setShareToken(string $t): static { $this->shareToken = $t; return $this; }
 
+    public function getCustomAlias(): ?string { return $this->customAlias; }
+    public function setCustomAlias(?string $a): static { $this->customAlias = $a; return $this; }
+
     public function getUser(): ?User { return $this->user; }
     public function setUser(?User $u): static { $this->user = $u; return $this; }
 
@@ -82,6 +100,12 @@ class File
     public function getPasswordHash(): ?string { return $this->passwordHash; }
     public function setPasswordHash(?string $h): static { $this->passwordHash = $h; return $this; }
 
+    public function getScanStatus(): string { return $this->scanStatus; }
+    public function setScanStatus(string $s): static { $this->scanStatus = $s; return $this; }
+    public function isClean(): bool    { return $this->scanStatus === self::SCAN_CLEAN; }
+    public function isInfected(): bool { return $this->scanStatus === self::SCAN_INFECTED; }
+    public function isScanPending(): bool { return $this->scanStatus === self::SCAN_PENDING; }
+
     public function getExpiresAt(): \DateTimeImmutable { return $this->expiresAt; }
     public function setExpiresAt(\DateTimeImmutable $e): static { $this->expiresAt = $e; return $this; }
 
@@ -96,8 +120,8 @@ class File
     public function getFormattedSize(): string
     {
         $b = $this->sizeBytes;
-        if ($b < 1024)       return $b . ' B';
-        if ($b < 1_048_576)  return round($b / 1024, 1) . ' KB';
+        if ($b < 1024)          return $b . ' B';
+        if ($b < 1_048_576)     return round($b / 1024, 1) . ' KB';
         if ($b < 1_073_741_824) return round($b / 1_048_576, 1) . ' MB';
         return round($b / 1_073_741_824, 2) . ' GB';
     }
