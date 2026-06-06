@@ -44,6 +44,18 @@ error() { echo -e "${RED}✗ $1${NC}"; exit 1; }
 [ -f ".env.local" ] || error ".env.local nenalezen. Vytvoř ho dle komentáře v tomto skriptu."
 command -v docker &>/dev/null || error "Docker není nainstalován."
 
+# Ověřit, že klíčové proměnné v .env.local nejsou placeholder hodnoty
+check_env() {
+    local val
+    val=$(grep -E "^${1}=" .env.local | cut -d= -f2- | tr -d '"' | tr -d "'")
+    [ -z "$val" ] || [ "$val" = "changeme" ] && error "${1} není nastaven v .env.local (aktuální hodnota: '${val}'). Nastav reálnou hodnotu."
+}
+check_env APP_SECRET
+check_env POSTGRES_PASSWORD
+check_env MINIO_KEY
+check_env MINIO_SECRET
+check_env RESEND_API_KEY
+
 # ── 1. Git pull ───────────────────────────────────────────────────────────────
 step "Stahování nejnovějšího kódu..."
 git pull --ff-only
