@@ -1,9 +1,9 @@
 # Produkční overlay — spouštět jako:
 #   docker compose -f compose.yaml -f compose.prod.yaml --env-file .env.local up -d
 #
-# .env.local musí obsahovat (viz README nebo bin/deploy.sh):
-#   APP_ENV, APP_SECRET, POSTGRES_PASSWORD, DATABASE_URL,
-#   MINIO_KEY, MINIO_SECRET, MINIO_PUBLIC_URL, RESEND_*, MAILER_DSN
+# compose.override.yaml se při tomto způsobu spuštění NENAČTE (Docker ho
+# automaticky přeskočí, pokud jsou -f přepínače zadány explicitně).
+# Tím pádem nedochází k žádnému mergování portů z dev konfigurace.
 
 services:
 
@@ -16,16 +16,16 @@ services:
   # ── Nginx — HTTP only, SSL termínuje NPM ─────────────────────────────
   nginx:
     ports:
-      - "127.0.0.1:8080:80"   # Bind jen na localhost; NPM přistupuje přes localhost:8080
+      - "127.0.0.1:8080:80"   # Jediný port; NPM přistupuje přes localhost:8080
     volumes:
       - ./public:/var/www/html/public:ro
       - ./docker/nginx/default.prod.conf:/etc/nginx/conf.d/default.conf:ro
-      # Žádný cert volume — SSL řeší NPM
+      # Cert volume se nemapuje — SSL řeší NPM
     restart: unless-stopped
 
   # ── PostgreSQL — neexponovat navenek ─────────────────────────────────
   postgres:
-    ports: []   # Přepíše dev port 5432:5432 — DB dostupná jen interně
+    # Žádné ports — DB dostupná jen interně v Docker síti
     environment:
       POSTGRES_DB:       app
       POSTGRES_USER:     app
@@ -35,8 +35,8 @@ services:
   # ── MinIO — dostupné přes NPM jako cdn.ulozimto.cz ───────────────────
   minio:
     ports:
-      - "127.0.0.1:9010:9000"   # S3 API — NPM proxuje cdn.ulozimto.cz → localhost:9000
-      # Port 9001 (konzole) neexponujeme; přistup přes SSH tunnel při potřebě:
+      - "127.0.0.1:9000:9000"   # NPM proxuje cdn.ulozimto.cz → localhost:9000
+      # Port 9001 (konzole) neexponujeme; přistup přes SSH tunnel:
       #   ssh -L 9001:localhost:9001 user@server
     environment:
       MINIO_ROOT_USER:     ${MINIO_KEY:?Nastav MINIO_KEY v .env.local}
@@ -47,9 +47,8 @@ services:
   redis:
     restart: unless-stopped
 
-  # ── ClamAV — x86_64 server, platform override nepotřebný ─────────────
+  # ── ClamAV — platform: linux/amd64 je native pro x86_64, override nepotřebný ──
   clamav:
-    platform: ""   # Odstraní linux/amd64 z dev compose; server je nativní x86_64
     restart: unless-stopped
 
   # ── Worker ───────────────────────────────────────────────────────────
@@ -58,7 +57,7 @@ services:
       APP_ENV: prod
     restart: unless-stopped
 
-  # ── Mailpit — v produkci vypnout (používáme Resend) ──────────────────
+  # ── Mailpit — v produkci vypnout ────────────────────────────────────
   mailer:
     profiles:
-      - dev   # Nespustí se bez --profile dev
+      - dev

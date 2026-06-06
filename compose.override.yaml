@@ -1,0 +1,20 @@
+# Dev overlay — Docker Compose ho načte automaticky při 'docker compose up'
+# (bez nutnosti zadávat -f compose.override.yaml)
+#
+# Přidává porty pro lokální vývoj. V produkci se tento soubor
+# NEPOUŽÍVÁ — spuštění je přes: docker compose -f compose.yaml -f compose.prod.yaml
+
+services:
+  nginx:
+    ports:
+      - "80:80"
+      - "443:443"
+
+  postgres:
+    ports:
+      - "5432:5432"
+
+  minio:
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # MinIO web konzole (http://localhost:9001)
