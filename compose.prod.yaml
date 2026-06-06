@@ -16,7 +16,7 @@ services:
   # ── Nginx — HTTP only, SSL termínuje NPM ─────────────────────────────
   nginx:
     ports:
-      - "127.0.0.1:8080:80"   # Jediný port; NPM přistupuje přes localhost:8080
+      - "8080:80"   # Jediný port; NPM přistupuje přes localhost:8080
     volumes:
       - ./public:/var/www/html/public:ro
       - ./docker/nginx/default.prod.conf:/etc/nginx/conf.d/default.conf:ro
@@ -35,7 +35,7 @@ services:
   # ── MinIO — dostupné přes NPM jako cdn.ulozimto.cz ───────────────────
   minio:
     ports:
-      - "127.0.0.1:9000:9000"   # NPM proxuje cdn.ulozimto.cz → localhost:9000
+      - "9000:9000"   # NPM proxuje cdn.ulozimto.cz → localhost:9000
       # Port 9001 (konzole) neexponujeme; přistup přes SSH tunnel:
       #   ssh -L 9001:localhost:9001 user@server
     environment:
