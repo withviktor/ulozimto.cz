@@ -35,7 +35,7 @@ services:
   # ── MinIO — dostupné přes NPM jako cdn.ulozimto.cz ───────────────────
   minio:
     ports:
-      - "127.0.0.1:9000:9000"   # S3 API — NPM proxuje cdn.ulozimto.cz → localhost:9000
+      - "127.0.0.1:9010:9000"   # S3 API — NPM proxuje cdn.ulozimto.cz → localhost:9000
       # Port 9001 (konzole) neexponujeme; přistup přes SSH tunnel při potřebě:
       #   ssh -L 9001:localhost:9001 user@server
     environment:
