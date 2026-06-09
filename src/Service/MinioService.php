@@ -6,15 +6,22 @@ use Aws\S3\S3Client;
 
 /**
  * Wrapper nad AWS S3 SDK pro MinIO.
- * Flysystem neexponuje multipart upload API přímo,
- * proto používáme S3Client přímo pro chunked uploady.
+ *
+ * Používá dva S3 klienty:
+ *   $client       — pro vnitřní operace (upload, delete, stream) přes interní Docker síť
+ *   $signerClient — pouze pro generování presigned URL, konfigurován s veřejnou doménou
+ *
+ * Důvod pro oddělené klienty:
+ *   Presigned URL obsahuje HMAC-SHA256 podpis hlavičky Host. Pokud je URL podepsána
+ *   s Host: minio:9000 (interní) ale prohlížeč pošle Host: cdn.ulozimto.cz (veřejná),
+ *   MinIO vrátí SignatureDoesNotMatch. Generování presigned URL je čistě offline
+ *   matematická operace — signerClient neprovádí žádné síťové volání na veřejnou doménu.
  */
 class MinioService
 {
     private S3Client $client;
-    private string $bucket;
-    private string $endpoint;
-    private string $publicUrl;
+    private S3Client $signerClient;
+    private string   $bucket;
 
     public function __construct(
         string $endpoint,
@@ -24,25 +31,26 @@ class MinioService
         string $bucket,
         string $publicUrl,
     ) {
-        $this->bucket    = $bucket;
-        $this->endpoint  = rtrim($endpoint, '/');
-        $this->publicUrl = rtrim($publicUrl, '/');
+        $this->bucket = $bucket;
 
-        $this->client = new S3Client([
+        $sharedConfig = [
             'version'                 => 'latest',
             'region'                  => $region,
-            'endpoint'                => $endpoint,
             'use_path_style_endpoint' => true,
             'credentials'             => [
                 'key'    => $key,
                 'secret' => $secret,
             ],
-        ]);
+        ];
+
+        // Vnitřní klient — rychlý přístup přes Docker síť (minio:9000)
+        $this->client = new S3Client($sharedConfig + ['endpoint' => rtrim($endpoint, '/')]);
+
+        // Podepisovací klient — URL generuje přímo s veřejnou doménou (cdn.ulozimto.cz)
+        $this->signerClient = new S3Client($sharedConfig + ['endpoint' => rtrim($publicUrl, '/')]);
     }
 
-    // ----------------------------------------------------------------
-    // Multipart upload (pro velké soubory)
-    // ----------------------------------------------------------------
+    // ── Multipart upload ─────────────────────────────────────────────
 
     public function createMultipartUpload(string $key, string $mimeType): string
     {
@@ -55,11 +63,7 @@ class MinioService
         return $result['UploadId'];
     }
 
-    /**
-     * Nahraje jeden chunk a vrátí jeho ETag.
-     *
-     * @param resource|string $body
-     */
+    /** @param resource|string $body */
     public function uploadPart(string $key, string $uploadId, int $partNumber, mixed $body): string
     {
         $result = $this->client->uploadPart([
@@ -73,11 +77,7 @@ class MinioService
         return $result['ETag'];
     }
 
-    /**
-     * Dokončí multipart upload.
-     *
-     * @param array<array{PartNumber: int, ETag: string}> $parts
-     */
+    /** @param array<array{PartNumber: int, ETag: string}> $parts */
     public function completeMultipartUpload(string $key, string $uploadId, array $parts): void
     {
         $this->client->completeMultipartUpload([
@@ -97,9 +97,7 @@ class MinioService
         ]);
     }
 
-    // ----------------------------------------------------------------
-    // Jednoduchý upload (malé soubory < 5 MB)
-    // ----------------------------------------------------------------
+    // ── Jednoduchý upload ─────────────────────────────────────────────
 
     public function putObject(string $key, mixed $body, string $mimeType): void
     {
@@ -111,33 +109,28 @@ class MinioService
         ]);
     }
 
-    // ----------------------------------------------------------------
-    // Presigned URL pro stahování (platná 1 hodinu)
-    // ----------------------------------------------------------------
+    // ── Presigned URL ─────────────────────────────────────────────────
 
+    /**
+     * Vygeneruje presigned URL podepsanou přímo s veřejnou doménou.
+     *
+     * signerClient má jako endpoint nastavenou veřejnou URL (cdn.ulozimto.cz),
+     * takže podpis bude odpovídat hlavičce Host, kterou prohlížeč pošle.
+     * Žádný str_replace není potřeba.
+     */
     public function getPresignedUrl(string $key, int $expiresInSeconds = 3600): string
     {
-        $cmd = $this->client->getCommand('GetObject', [
+        $cmd = $this->signerClient->getCommand('GetObject', [
             'Bucket' => $this->bucket,
             'Key'    => $key,
         ]);
 
-        $request = $this->client->createPresignedRequest($cmd, "+{$expiresInSeconds} seconds");
+        $request = $this->signerClient->createPresignedRequest($cmd, "+{$expiresInSeconds} seconds");
 
-        $url = (string) $request->getUri();
-
-        // Presigned URL obsahuje interní Docker hostname (např. http://minio:9000).
-        // Nahradíme ho veřejnou URL aby odkaz fungoval v prohlížeči.
-        if ($this->endpoint !== $this->publicUrl) {
-            $url = str_replace($this->endpoint, $this->publicUrl, $url);
-        }
-
-        return $url;
+        return (string) $request->getUri();
     }
 
-    // ----------------------------------------------------------------
-    // Mazání
-    // ----------------------------------------------------------------
+    // ── Mazání ───────────────────────────────────────────────────────
 
     public function delete(string $key): void
     {
@@ -147,9 +140,7 @@ class MinioService
         ]);
     }
 
-    // ----------------------------------------------------------------
-    // Bucket bootstrap (vytvoří bucket pokud neexistuje)
-    // ----------------------------------------------------------------
+    // ── Bucket bootstrap ─────────────────────────────────────────────
 
     public function ensureBucketExists(): void
     {
@@ -158,11 +149,11 @@ class MinioService
         }
     }
 
+    // ── Stream proxy ─────────────────────────────────────────────────
+
     /**
-     * Vrátí obsah souboru jako PHP stream (resource).
-     *
-     * Pokud jsou zadány $start / $end, použije se HTTP Range požadavek na S3
-     * a vrátí pouze požadovaný úsek (pro 206 Partial Content proxy).
+     * Vrátí obsah souboru jako PHP stream.
+     * Volitelný range pro HTTP 206 Partial Content (video/audio seeking).
      *
      * @return resource
      */
@@ -181,6 +172,8 @@ class MinioService
 
         return $result['Body']->detach();
     }
+
+    // ── Helpers ───────────────────────────────────────────────────────
 
     public function generateKey(string $filename): string
     {
