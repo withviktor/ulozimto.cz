@@ -197,9 +197,10 @@ class UploadController extends AbstractController
          $this->dispatchScan($file, $user);
 
          $token = $file->getCustomAlias() ?? $file->getShareToken();
+         $shareUrl = $this->domainService->getShareUrl($token);
 
          return $this->json([
-             'shareUrl'  => $this->domainService->getShareUrl($token),
+             'shareUrl'  => $shareUrl,
              'token'     => $token,
          ]);
      }
@@ -280,9 +281,10 @@ class UploadController extends AbstractController
          $this->dispatchScan($file, $user);
 
          $token = $file->getCustomAlias() ?? $file->getShareToken();
+         $shareUrl = $this->domainService->getShareUrl($token);
 
          return $this->json([
-             'shareUrl'  => $this->domainService->getShareUrl($token),
+             'shareUrl'  => $shareUrl,
              'token'     => $token,
          ]);
      }
