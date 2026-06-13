@@ -191,26 +191,26 @@
             </span>
         </div>
 
-        {# Share odkaz #}
-        <p class="text-sm font-medium text-gray-700 mb-2">Odkaz ke sdílení:</p>
-        <div class="flex gap-2 mb-4">
-            <input type="text" :value="shareUrl" readonly
-                   class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 select-all">
-            <button @click="copyLink()"
-                    class="inline-flex items-center gap-1.5 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700 transition flex-shrink-0">
-                <i data-lucide="copy" class="w-4 h-4"></i>
-                <span x-text="copied ? 'Zkopírováno!' : 'Kopírovat'"></span>
-            </button>
-        </div>
+         {# Share odkaz #}
+         <p class="text-sm font-medium text-gray-700 mb-2">Odkaz ke sdílení:</p>
+         <div class="flex gap-2 mb-4">
+             <input type="text" :value="window.location.origin + shareUrl" readonly
+                    class="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm bg-gray-50 select-all">
+             <button @click="copyLink()"
+                     class="inline-flex items-center gap-1.5 bg-indigo-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-indigo-700 transition flex-shrink-0">
+                 <i data-lucide="copy" class="w-4 h-4"></i>
+                 <span x-text="copied ? 'Zkopírováno!' : 'Kopírovat'"></span>
+             </button>
+         </div>
 
-        {# Přejít na stránku souboru #}
-        <a :href="shareUrl"
-           target="_blank"
-           class="flex items-center justify-center gap-2 w-full border border-gray-200 text-gray-600
-                  text-sm py-2.5 rounded-xl hover:bg-gray-50 transition mb-3">
-            <i data-lucide="external-link" class="w-4 h-4"></i>
-            Otevřít stránku souboru
-        </a>
+         {# Přejít na stránku souboru #}
+         <a :href="window.location.origin + shareUrl"
+            target="_blank"
+            class="flex items-center justify-center gap-2 w-full border border-gray-200 text-gray-600
+                   text-sm py-2.5 rounded-xl hover:bg-gray-50 transition mb-3">
+             <i data-lucide="external-link" class="w-4 h-4"></i>
+             Otevřít stránku souboru
+         </a>
 
         <button @click="reset()" class="w-full text-sm text-gray-400 hover:text-gray-600 transition py-1">
             Nahrát další soubor

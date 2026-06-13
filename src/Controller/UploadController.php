@@ -6,7 +6,6 @@ use App\Entity\File;
 use App\Entity\User;
 use App\Message\ScanFileMessage;
 use App\Repository\FileRepository;
-use App\Service\DomainService;
 use App\Service\FileExpirationService;
 use App\Service\MinioService;
 use App\Service\ZipService;
@@ -25,17 +24,16 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route('/upload')]
 class UploadController extends AbstractController
 {
-     public function __construct(
-         private readonly MinioService           $minio,
-         private readonly ZipService             $zip,
-         private readonly FileExpirationService  $expiration,
-         private readonly FileRepository         $fileRepo,
-         private readonly EntityManagerInterface $em,
-         private readonly Security               $security,
-         private readonly MessageBusInterface    $bus,
-         private readonly RateLimiterFactory     $uploadLimiter,
-         private readonly DomainService          $domainService,
-     ) {}
+      public function __construct(
+          private readonly MinioService           $minio,
+          private readonly ZipService             $zip,
+          private readonly FileExpirationService  $expiration,
+          private readonly FileRepository         $fileRepo,
+          private readonly EntityManagerInterface $em,
+          private readonly Security               $security,
+          private readonly MessageBusInterface    $bus,
+          private readonly RateLimiterFactory     $uploadLimiter,
+      ) {}
 
     // ----------------------------------------------------------------
     // Hlavní stránka s formulářem
@@ -194,20 +192,19 @@ class UploadController extends AbstractController
          $this->em->persist($file);
          $this->em->flush();
 
-         $this->dispatchScan($file, $user);
+          $this->dispatchScan($file, $user);
 
-         $token = $file->getCustomAlias() ?? $file->getShareToken();
-         $shareUrl = $this->domainService->getShareUrl($token);
+          $token = $file->getCustomAlias() ?? $file->getShareToken();
 
-         return $this->json([
-             'shareUrl'  => $shareUrl,
-             'token'     => $token,
-         ]);
-     }
+          return $this->json([
+              'shareUrl'  => '/s/' . $token,
+              'token'     => $token,
+          ]);
+      }
 
-     // ----------------------------------------------------------------
-     // Upload složky: server složku zazipuje a nahraje jako jeden soubor
-     // ----------------------------------------------------------------
+      // ----------------------------------------------------------------
+      // Upload složky: server složku zazipuje a nahraje jako jeden soubor
+      // ----------------------------------------------------------------
 
     #[Route('/folder', name: 'upload_folder', methods: ['POST'])]
     public function folder(Request $request): JsonResponse
@@ -278,20 +275,19 @@ class UploadController extends AbstractController
          $this->em->persist($file);
          $this->em->flush();
 
-         $this->dispatchScan($file, $user);
+          $this->dispatchScan($file, $user);
 
-         $token = $file->getCustomAlias() ?? $file->getShareToken();
-         $shareUrl = $this->domainService->getShareUrl($token);
+          $token = $file->getCustomAlias() ?? $file->getShareToken();
 
-         return $this->json([
-             'shareUrl'  => $shareUrl,
-             'token'     => $token,
-         ]);
-     }
+          return $this->json([
+              'shareUrl'  => '/s/' . $token,
+              'token'     => $token,
+          ]);
+      }
 
-     // ----------------------------------------------------------------
-     // Helpers
-     // ----------------------------------------------------------------
+      // ----------------------------------------------------------------
+      // Helpers
+      // ----------------------------------------------------------------
 
     private function createFileEntity(
         ?User $user,

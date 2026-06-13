@@ -218,9 +218,8 @@ document.addEventListener('alpine:init', () => {
                 return;
             }
 
-            const { shareUrl, token } = await completeRes.json();
-             // Normalize and validate the share URL
-             this.shareUrl   = this._normalizeShareUrl(shareUrl);
+             const { shareUrl, token } = await completeRes.json();
+             this.shareUrl   = shareUrl;
              this.shareToken = token;
              this.progress   = 100;
              this.uploading  = false;
@@ -257,9 +256,8 @@ document.addEventListener('alpine:init', () => {
                 return;
             }
 
-            const { shareUrl, token } = await res.json();
-             // Normalize and validate the share URL
-             this.shareUrl   = this._normalizeShareUrl(shareUrl);
+             const { shareUrl, token } = await res.json();
+             this.shareUrl   = shareUrl;
              this.shareToken = token;
              this.progress   = 100;
              this.uploading  = false;
@@ -268,44 +266,9 @@ document.addEventListener('alpine:init', () => {
              this._startScanPolling(token);
         },
 
-        /**
-         * Normalize and validate share URL
-         * - Removes protocol duplication (https://ulozimto.czthttps://...)
-         * - Ensures absolute URL with proper protocol
-         * - Falls back to safe URL if malformed
-         */
-        _normalizeShareUrl(shareUrl) {
-            if (!shareUrl) return '';
-            
-            // Remove any extra whitespace
-            shareUrl = String(shareUrl).trim();
-            
-            // Check for duplicated protocol/domain pattern
-            // Pattern: https://domain.com<protocol>://... or similar
-            const protocolDuplicateMatch = shareUrl.match(/^(https?:\/\/[a-z0-9.-]+)(https?:\/\/)/i);
-            if (protocolDuplicateMatch) {
-                // Extract everything after the duplicate protocol
-                const afterDuplicate = shareUrl.substring(protocolDuplicateMatch[0].length);
-                // Reconstruct with proper domain
-                shareUrl = 'https://' + afterDuplicate.replace(/^\/+/, '');
-            }
-            
-            // If it's already a complete URL, use it
-            if (shareUrl.startsWith('http://') || shareUrl.startsWith('https://')) {
-                return shareUrl;
-            }
-            
-            // If it's a relative URL, prepend the origin
-            if (shareUrl.startsWith('/')) {
-                return window.location.origin + shareUrl;
-            }
-            
-            // Fallback: assume it's a path and prepend origin
-            return window.location.origin + '/' + shareUrl;
-        },
-
         async copyLink() {
-            await navigator.clipboard.writeText(this.shareUrl);
+            const fullUrl = window.location.origin + this.shareUrl;
+            await navigator.clipboard.writeText(fullUrl);
             this.copied = true;
             setTimeout(() => this.copied = false, 2000);
         },
