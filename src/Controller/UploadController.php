@@ -3,11 +3,9 @@
 namespace App\Controller;
 
 use App\Entity\File;
-use App\Entity\ShortLink;
 use App\Entity\User;
 use App\Message\ScanFileMessage;
 use App\Repository\FileRepository;
-use App\Repository\ShortLinkRepository;
 use App\Service\DomainService;
 use App\Service\FileExpirationService;
 use App\Service\MinioService;
@@ -27,18 +25,17 @@ use Symfony\Component\Routing\Attribute\Route;
 #[Route('/upload')]
 class UploadController extends AbstractController
 {
-    public function __construct(
-        private readonly MinioService           $minio,
-        private readonly ZipService             $zip,
-        private readonly FileExpirationService  $expiration,
-        private readonly FileRepository         $fileRepo,
-        private readonly ShortLinkRepository    $shortLinkRepo,
-        private readonly EntityManagerInterface $em,
-        private readonly Security               $security,
-        private readonly MessageBusInterface    $bus,
-        private readonly RateLimiterFactory     $uploadLimiter,
-        private readonly DomainService          $domainService,
-    ) {}
+     public function __construct(
+         private readonly MinioService           $minio,
+         private readonly ZipService             $zip,
+         private readonly FileExpirationService  $expiration,
+         private readonly FileRepository         $fileRepo,
+         private readonly EntityManagerInterface $em,
+         private readonly Security               $security,
+         private readonly MessageBusInterface    $bus,
+         private readonly RateLimiterFactory     $uploadLimiter,
+         private readonly DomainService          $domainService,
+     ) {}
 
     // ----------------------------------------------------------------
     // Hlavní stránka s formulářem
@@ -194,32 +191,22 @@ class UploadController extends AbstractController
             $file->setCustomAlias($customAlias);
         }
 
-        $this->em->persist($file);
-        $this->em->flush();
+         $this->em->persist($file);
+         $this->em->flush();
 
-        // Vytvořit short link
-        $slug = $this->shortLinkRepo->generateUniqueSlug(6);
-        $shortLink = new ShortLink();
-        $shortLink->setFile($file);
-        $shortLink->setSlug($slug);
-        $this->em->persist($shortLink);
-        $this->em->flush();
+         $this->dispatchScan($file, $user);
 
-        $this->dispatchScan($file, $user);
+         $token = $file->getCustomAlias() ?? $file->getShareToken();
 
-        $token = $file->getCustomAlias() ?? $file->getShareToken();
+         return $this->json([
+             'shareUrl'  => $this->domainService->getShareUrl($token),
+             'token'     => $token,
+         ]);
+     }
 
-        return $this->json([
-            'shareUrl'  => $this->domainService->getShareUrl($token),
-            'shortUrl'  => $this->domainService->getShortLinkUrl($slug),
-            'token'     => $token,
-            'shortSlug' => $slug,
-        ]);
-    }
-
-    // ----------------------------------------------------------------
-    // Upload složky: server složku zazipuje a nahraje jako jeden soubor
-    // ----------------------------------------------------------------
+     // ----------------------------------------------------------------
+     // Upload složky: server složku zazipuje a nahraje jako jeden soubor
+     // ----------------------------------------------------------------
 
     #[Route('/folder', name: 'upload_folder', methods: ['POST'])]
     public function folder(Request $request): JsonResponse
@@ -287,32 +274,22 @@ class UploadController extends AbstractController
             $file->setCustomAlias($customAlias);
         }
 
-        $this->em->persist($file);
-        $this->em->flush();
+         $this->em->persist($file);
+         $this->em->flush();
 
-        // Vytvořit short link
-        $slug = $this->shortLinkRepo->generateUniqueSlug(6);
-        $shortLink = new ShortLink();
-        $shortLink->setFile($file);
-        $shortLink->setSlug($slug);
-        $this->em->persist($shortLink);
-        $this->em->flush();
+         $this->dispatchScan($file, $user);
 
-        $this->dispatchScan($file, $user);
+         $token = $file->getCustomAlias() ?? $file->getShareToken();
 
-        $token = $file->getCustomAlias() ?? $file->getShareToken();
+         return $this->json([
+             'shareUrl'  => $this->domainService->getShareUrl($token),
+             'token'     => $token,
+         ]);
+     }
 
-        return $this->json([
-            'shareUrl'  => $this->domainService->getShareUrl($token),
-            'shortUrl'  => $this->domainService->getShortLinkUrl($slug),
-            'token'     => $token,
-            'shortSlug' => $slug,
-        ]);
-    }
-
-    // ----------------------------------------------------------------
-    // Helpers
-    // ----------------------------------------------------------------
+     // ----------------------------------------------------------------
+     // Helpers
+     // ----------------------------------------------------------------
 
     private function createFileEntity(
         ?User $user,
