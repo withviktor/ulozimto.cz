@@ -93,8 +93,13 @@ class ShareController extends AbstractController
         }
 
         // SECURITY FIX: Hide password-protected files from status endpoint
+        // EXCEPTION: File owners can bypass password check
         if ($file->isPasswordProtected()) {
-            return $this->json(['status' => 'not_found'], 404);
+            $user = $this->getUser();
+            // Only allow owners to check status without password
+            if (!$user || $file->getUser() !== $user) {
+                return $this->json(['status' => 'not_found'], 404);
+            }
         }
 
         return $this->json([

@@ -219,7 +219,8 @@ document.addEventListener('alpine:init', () => {
             }
 
             const { shareUrl, token } = await completeRes.json();
-            this.shareUrl   = window.location.origin + shareUrl;
+            // Only prepend origin if shareUrl is a relative URL
+            this.shareUrl   = shareUrl.startsWith('http') ? shareUrl : window.location.origin + shareUrl;
             this.shareToken = token;
             this.progress   = 100;
             this.uploading  = false;
@@ -257,7 +258,8 @@ document.addEventListener('alpine:init', () => {
             }
 
             const { shareUrl, token } = await res.json();
-            this.shareUrl   = window.location.origin + shareUrl;
+            // Only prepend origin if shareUrl is a relative URL
+            this.shareUrl   = shareUrl.startsWith('http') ? shareUrl : window.location.origin + shareUrl;
             this.shareToken = token;
             this.progress   = 100;
             this.uploading  = false;
