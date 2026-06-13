@@ -63,12 +63,17 @@
                             <i data-lucide="user" class="w-4 h-4 text-gray-400"></i>
                             Profil
                         </a>
-                        <a href="{{ path('dashboard') }}"
-                           class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                            <i data-lucide="folder" class="w-4 h-4 text-gray-400"></i>
-                            Moje soubory
-                        </a>
-                        <hr class="my-1 border-gray-100">
+                         <a href="{{ path('dashboard') }}"
+                            class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                             <i data-lucide="folder" class="w-4 h-4 text-gray-400"></i>
+                             Moje soubory
+                         </a>
+                         <a href="{{ path('dashboard_short_links') }}"
+                            class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                             <i data-lucide="link-2" class="w-4 h-4 text-gray-400"></i>
+                             Zkrácené linky
+                         </a>
+                         <hr class="my-1 border-gray-100">
                         <a href="{{ path('auth_logout') }}"
                            class="flex items-center gap-2 px-4 py-2 text-sm text-red-500 hover:bg-red-50">
                             <i data-lucide="log-out" class="w-4 h-4"></i>

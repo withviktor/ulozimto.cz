@@ -3,9 +3,12 @@
 namespace App\Controller;
 
 use App\Entity\File;
+use App\Entity\ShortLink;
 use App\Entity\User;
 use App\Message\ScanFileMessage;
 use App\Repository\FileRepository;
+use App\Repository\ShortLinkRepository;
+use App\Service\DomainService;
 use App\Service\FileExpirationService;
 use App\Service\MinioService;
 use App\Service\ZipService;
@@ -29,10 +32,12 @@ class UploadController extends AbstractController
         private readonly ZipService             $zip,
         private readonly FileExpirationService  $expiration,
         private readonly FileRepository         $fileRepo,
+        private readonly ShortLinkRepository    $shortLinkRepo,
         private readonly EntityManagerInterface $em,
         private readonly Security               $security,
         private readonly MessageBusInterface    $bus,
         private readonly RateLimiterFactory     $uploadLimiter,
+        private readonly DomainService          $domainService,
     ) {}
 
     // ----------------------------------------------------------------
@@ -192,13 +197,23 @@ class UploadController extends AbstractController
         $this->em->persist($file);
         $this->em->flush();
 
+        // Vytvořit short link
+        $slug = $this->shortLinkRepo->generateUniqueSlug(6);
+        $shortLink = new ShortLink();
+        $shortLink->setFile($file);
+        $shortLink->setSlug($slug);
+        $this->em->persist($shortLink);
+        $this->em->flush();
+
         $this->dispatchScan($file, $user);
 
         $token = $file->getCustomAlias() ?? $file->getShareToken();
 
         return $this->json([
-            'shareUrl' => $this->generateUrl('share_show', ['token' => $token]),
-            'token'    => $token,
+            'shareUrl'  => $this->domainService->getShareUrl($token),
+            'shortUrl'  => $this->domainService->getShortLinkUrl($slug),
+            'token'     => $token,
+            'shortSlug' => $slug,
         ]);
     }
 
@@ -275,13 +290,23 @@ class UploadController extends AbstractController
         $this->em->persist($file);
         $this->em->flush();
 
+        // Vytvořit short link
+        $slug = $this->shortLinkRepo->generateUniqueSlug(6);
+        $shortLink = new ShortLink();
+        $shortLink->setFile($file);
+        $shortLink->setSlug($slug);
+        $this->em->persist($shortLink);
+        $this->em->flush();
+
         $this->dispatchScan($file, $user);
 
         $token = $file->getCustomAlias() ?? $file->getShareToken();
 
         return $this->json([
-            'shareUrl' => $this->generateUrl('share_show', ['token' => $token]),
-            'token'    => $token,
+            'shareUrl'  => $this->domainService->getShareUrl($token),
+            'shortUrl'  => $this->domainService->getShortLinkUrl($slug),
+            'token'     => $token,
+            'shortSlug' => $slug,
         ]);
     }
 

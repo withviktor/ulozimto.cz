@@ -6,6 +6,7 @@ use App\Entity\File;
 use App\Repository\FileRepository;
 use App\Service\FileExpirationService;
 use App\Service\MinioService;
+use App\Service\PasswordVerificationService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -26,10 +27,11 @@ class ShareController extends AbstractController
     ];
 
     public function __construct(
-        private readonly FileRepository         $files,
-        private readonly MinioService           $minio,
-        private readonly FileExpirationService  $expiration,
-        private readonly EntityManagerInterface $em,
+        private readonly FileRepository              $files,
+        private readonly MinioService                $minio,
+        private readonly FileExpirationService       $expiration,
+        private readonly EntityManagerInterface      $em,
+        private readonly PasswordVerificationService $passwordVerification,
     ) {}
 
     /** Info stránka sdíleného souboru — podporuje token i vlastní alias */
@@ -44,16 +46,26 @@ class ShareController extends AbstractController
 
         // Soubor chráněný heslem
         if ($file->isPasswordProtected()) {
-            $submittedPassword = $request->request->get('password');
+            // Zkontrolovat, zda je soubor již odemčen
+            if (!$this->passwordVerification->isUnlocked($file, $request)) {
+                $submittedPassword = $request->request->get('password');
 
-            if (!$submittedPassword || !password_verify($submittedPassword, $file->getPasswordHash())) {
-                return $this->render('share/password.html.twig', [
-                    'file'  => $file,
-                    'error' => $submittedPassword !== null ? 'Nesprávné heslo.' : null,
-                ]);
+                // Pokud byl zadán nový pokus
+                if ($submittedPassword !== null) {
+                    if (!$this->passwordVerification->verifyAndUnlock($file, $submittedPassword, $request)) {
+                        return $this->render('share/password.html.twig', [
+                            'file'  => $file,
+                            'error' => 'Nesprávné heslo.',
+                        ]);
+                    }
+                } else {
+                    // Heslo zatím zadáno nebylo, zobrazit formulář
+                    return $this->render('share/password.html.twig', [
+                        'file'  => $file,
+                        'error' => null,
+                    ]);
+                }
             }
-
-            $request->getSession()->set('unlocked_' . $file->getShareToken(), true);
         }
 
         // Soubor infikován virem
@@ -80,6 +92,11 @@ class ShareController extends AbstractController
             return $this->json(['status' => 'not_found'], 404);
         }
 
+        // SECURITY FIX: Hide password-protected files from status endpoint
+        if ($file->isPasswordProtected()) {
+            return $this->json(['status' => 'not_found'], 404);
+        }
+
         return $this->json([
             'status'     => $file->getScanStatus(),
             'previewUrl' => $file->isClean() ? $this->buildPreviewUrl($file) : null,
@@ -96,9 +113,10 @@ class ShareController extends AbstractController
             throw $this->createNotFoundException();
         }
 
+        // Ověřit heslo - s defense-in-depth přístupem
         if ($file->isPasswordProtected()) {
-            if (!$request->getSession()->get('unlocked_' . $token, false)) {
-                return new Response('Unauthorized', 401);
+            if (!$this->passwordVerification->isUnlocked($file, $request)) {
+                return new Response('Unauthorized - password required', 401);
             }
         }
 
@@ -199,8 +217,9 @@ class ShareController extends AbstractController
             return $this->redirectToRoute('share_show', ['token' => $token]);
         }
 
+        // Ověřit heslo - s defense-in-depth přístupem
         if ($file->isPasswordProtected()) {
-            if (!$request->getSession()->get('unlocked_' . $file->getShareToken(), false)) {
+            if (!$this->passwordVerification->isUnlocked($file, $request)) {
                 return $this->redirectToRoute('share_show', ['token' => $token]);
             }
         }

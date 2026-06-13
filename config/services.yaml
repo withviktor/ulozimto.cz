@@ -56,3 +56,9 @@ services:
     App\Controller\UploadController:
         arguments:
             $uploadLimiter: '@limiter.upload_limiter'
+
+    App\Service\DomainService:
+        arguments:
+            $mainDomain: '%env(MAIN_DOMAIN)%'
+            $shortDomain: '%env(SHORT_DOMAIN)%'
+            $redirectShortToMain: '%env(bool:REDIRECT_SHORT_TO_MAIN)%'
